@@ -1,0 +1,173 @@
+/* СкайСкейл — тема MikoPBX (цвета + шрифты), CSP-safe */
+
+@font-face {
+  font-family: 'Manrope';
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url('../fonts/manrope-latin.woff2') format('woff2');
+}
+
+:root {
+  --ss-sidebar: #1e212b;
+  --ss-sidebar-hover: #2a2e3b;
+  --ss-accent: #9c2732;
+  --ss-accent-hover: #b52f3c;
+  --ss-accent-soft: #fdecee;
+  --ss-surface: #f3f4f7;
+  --ss-text: #1a1d27;
+  --ss-muted: #8b90a0;
+}
+
+html, body, .ui, button, input, select, textarea,
+.ui.button, .ui.menu, .ui.header, .ui.table, .ui.label,
+.ui.form input, .ui.form textarea, .ui.dropdown {
+  font-family: 'Manrope', 'Segoe UI', Tahoma, sans-serif !important;
+}
+
+body {
+  background: var(--ss-surface) !important;
+  color: var(--ss-text);
+}
+
+#sidebarnav,
+#sidebar-menu,
+.sidebar-menu,
+.ui.inverted.menu,
+.ui.vertical.inverted.menu,
+.ui.left.fixed.menu,
+.ui.top.fixed.inverted.menu,
+.ui.menu.inverted {
+  background: var(--ss-sidebar) !important;
+}
+
+.ui.inverted.menu .item,
+.ui.vertical.inverted.menu .item {
+  color: #d7dae5 !important;
+  font-weight: 600 !important;
+}
+
+/* Category wrappers (Модули / Обслуживание) — без подсветки */
+.ui.vertical.inverted.menu > .item:hover,
+.sidebar-menu.ui.vertical.inverted.menu > .item:hover {
+  background: transparent !important;
+  color: inherit !important;
+}
+
+.ui.vertical.inverted.menu > .item > .header,
+.sidebar-menu > .item > .header {
+  background: transparent !important;
+  color: #9aa0b2 !important;
+  cursor: default !important;
+}
+
+/* Только ссылки меню */
+.ui.inverted.menu a.item:hover,
+.ui.vertical.inverted.menu a.item:hover {
+  background: var(--ss-sidebar-hover) !important;
+  color: #fff !important;
+  border-radius: 8px;
+}
+
+.ui.inverted.menu .active.item,
+.ui.vertical.inverted.menu a.item.active,
+.ui.vertical.inverted.menu .active.item {
+  background: var(--ss-accent) !important;
+  color: #fff !important;
+}
+
+.ui.primary.button,
+.ui.primary.buttons .button,
+.ui.blue.button,
+.ui.blue.buttons .button,
+.ui.blue.basic.button:hover {
+  background-color: var(--ss-accent) !important;
+  background-image: none !important;
+  color: #fff !important;
+  text-shadow: none !important;
+  border-radius: 10px !important;
+  font-weight: 700 !important;
+}
+
+.ui.primary.button:hover,
+.ui.primary.buttons .button:hover,
+.ui.blue.button:hover,
+.ui.blue.buttons .button:hover {
+  background-color: var(--ss-accent-hover) !important;
+}
+
+.ui.blue.basic.button,
+.ui.blue.basic.buttons .button {
+  color: var(--ss-accent) !important;
+  box-shadow: 0 0 0 1px var(--ss-accent) inset !important;
+}
+
+a { color: var(--ss-accent); }
+a:hover { color: var(--ss-accent-hover); }
+
+.ui.blue.label,
+.ui.primary.label {
+  background-color: var(--ss-accent) !important;
+  border-color: var(--ss-accent) !important;
+  color: #fff !important;
+}
+
+i.blue.icon,
+.ui.blue.icon {
+  color: var(--ss-accent) !important;
+}
+
+.ui.table thead th {
+  background: #fafbfc !important;
+  color: var(--ss-muted) !important;
+  font-weight: 700 !important;
+}
+
+.ui.table tbody tr:hover td {
+  background: var(--ss-accent-soft) !important;
+}
+
+.ui.input > input:focus,
+.ui.form input:focus,
+.ui.form textarea:focus {
+  border-color: var(--ss-accent) !important;
+}
+
+.ui.checkbox input:checked ~ label:before,
+.ui.checkbox input:checked ~ .box:before {
+  background: var(--ss-accent) !important;
+  border-color: var(--ss-accent) !important;
+}
+
+h1, h2, h3, .ui.header {
+  font-weight: 800 !important;
+  letter-spacing: -0.02em;
+}
+
+.ui.segment, .ui.card {
+  border-radius: 12px !important;
+}
+
+.ui.progress .bar {
+  background: var(--ss-accent) !important;
+}
+
+/* Logo СкайСкейл */
+.top-left-logo img,
+a.item.logo img,
+#login-logo,
+#top-left-logo img {
+  max-height: 42px !important;
+  width: auto !important;
+  height: auto !important;
+  background: #fff !important;
+  border-radius: 10px !important;
+  padding: 4px 8px !important;
+  object-fit: contain !important;
+}
+
+#login-logo {
+  max-height: 120px !important;
+  padding: 12px 16px !important;
+}
+
