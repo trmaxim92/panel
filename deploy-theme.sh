@@ -14,7 +14,8 @@ fi
 
 docker cp "$ROOT/theme/skyscale-theme.css" "$CONTAINER:/tmp/skyscale-theme.css"
 docker cp "$ROOT/theme/apply-in-container.sh" "$CONTAINER:/tmp/apply-in-container.sh"
-docker cp -r "$ROOT/theme/brand" "$CONTAINER:/tmp/brand"
+docker exec "$CONTAINER" mkdir -p /tmp/brand
+tar -C "$ROOT/theme/brand" -cf - . | docker exec -i "$CONTAINER" tar -C /tmp/brand -xf -
 
 docker exec "$CONTAINER" sh -c \
   'THEME_SRC=/tmp/skyscale-theme.css BRAND_DIR=/tmp/brand sh /tmp/apply-in-container.sh'
