@@ -5,7 +5,6 @@
 ## Локально (Windows + Docker Desktop)
 
 ```powershell
-cd mikopbx   # если клонировали весь monorepo — иначе корень этого репо
 .\dev-up.ps1
 ```
 
