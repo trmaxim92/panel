@@ -40,8 +40,18 @@ fi
 
 if [ -f "$BRAND_DIR/logo-skayskel.png" ]; then
   cp "$BRAND_DIR/logo-skayskel.png" "$IMGDIR/logo-skayskel.png"
+  cp "$BRAND_DIR/logo-skayskel.png" "$IMGDIR/logo-mikopbx.png"
+  cp "$BRAND_DIR/logo-skayskel.png" "$IMGDIR/logo.png"
 elif [ -f /tmp/logo-skayskel.png ]; then
   cp /tmp/logo-skayskel.png "$IMGDIR/logo-skayskel.png"
+  cp /tmp/logo-skayskel.png "$IMGDIR/logo-mikopbx.png"
+  cp /tmp/logo-skayskel.png "$IMGDIR/logo.png"
+fi
+
+# SVG-as-<img> cannot reliably render nested PNG; force PNG path in controller
+CTRL=/usr/www/src/AdminCabinet/Controllers/BaseController.php
+if [ -f "$CTRL" ]; then
+  sed -i 's|assets/img/logo-mikopbx.svg|assets/img/logo-mikopbx.png|g' "$CTRL"
 fi
 
 if [ -f "$BRAND_DIR/favicon.png" ]; then
