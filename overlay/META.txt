@@ -1,0 +1,3 @@
+pulled_at=2026-10-02T10:51:34+03:00
+host=mikopbx
+Asterisk 22.8.2 built by root @ c98cfd2b5ab5 on a x86_64 running Linux on 2026-08-01 22:20:27 UTC

@@ -1,53 +1,48 @@
 # СкайСкейл / MikoPBX
 
-Локальная разработка темы MikoPBX и выкладка на VPS через git.
+Локальная разработка → тест в Docker → `git push` → выкладка на VPS.
 
-## Локально (Windows + Docker Desktop)
+## Быстрый цикл
 
 ```powershell
+cd c:\call\mikopbx
+
+# 1) поднять локальный Miko (один раз / при необходимости)
 .\dev-up.ps1
+
+# 2) править исходники здесь:
+#    theme\cdr-patches\          — CDR / записи / API
+#    theme\skyscale-theme.css    — тема
+#    overlay\                    — полный деплой-слой (собирается скриптом)
+
+# 3) накатить правки в локальный контейнер и проверить в браузере
+.\dev-apply-overlay.ps1
+# UI: https://127.0.0.1:18443   admin / admin
+
+# 4) в git
+git add -A
+git commit -m "..."
+git push
+
+# 5) на VPS
+# git pull && sudo bash deploy-overlay.sh
 ```
 
-- UI: https://127.0.0.1:18443  
-- Логин: `admin` / `admin`  
-- Тема: `theme/skyscale-theme.css`  
-- Логотип: `theme/brand/`  
-
-После правок CSS/лого:
-
-```powershell
-.\dev-apply-theme.ps1
-```
-
-## VPS (Linux)
-
-Клон / обновление:
-
-```bash
-git clone git@github.com:trmaxim92/panel.git /opt/skayscale-pbx
-# или
-cd /opt/skayscale-pbx && git pull
-```
-
-Первичная установка Miko (один раз):
-
-```bash
-cd /opt/skayscale-pbx
-sudo WEB_ADMIN_PASSWORD='StrongPass' bash install.sh
-```
-
-Применить тему и логотип на уже работающий контейнер `mikopbx`:
-
-```bash
-sudo bash deploy-theme.sh
-```
-
-## Состав
+## Структура
 
 | Путь | Назначение |
 |------|------------|
-| `docker-compose.yml` | прод (host network) |
-| `docker-compose.dev.yml` | локальная разработка |
-| `theme/` | CSS + бренд |
-| `install.sh` | чистая установка Docker Miko |
-| `deploy-theme.sh` | git-friendly выкладка темы на VPS |
+| `theme/cdr-patches/` | **Редактируемые** исходники (JS, volt, GetListAction, записи) |
+| `theme/skyscale-theme.css` | Тема |
+| `overlay/` | Слой файлов для деплоя в `/usr/www` |
+| `docker-compose.dev.yml` | Локальный Docker |
+| `deploy-overlay.sh` | Выкладка overlay на прод-контейнер |
+| `sync-patches-to-overlay.ps1` | Патчи → overlay |
+| `sync-from-vps.ps1` | Стянуть overlay с прода (если нужно) |
+| `mikopbx-migrate.tgz` | Архив переноса сервера (**секреты**, в git не пушится) |
+| `MIGRATE.md` | Как переносить на новый VPS |
+
+## Важно
+
+- В git уходит код/оверлей/тема, **не** `mikopbx-migrate.tgz` (там пароли).
+- Перед деплоем на VPS: `.\sync-patches-to-overlay.ps1`, затем commit/push и `deploy-overlay.sh` на сервере.

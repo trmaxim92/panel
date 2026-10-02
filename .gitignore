@@ -18,6 +18,15 @@ Thumbs.db
 *.log
 __pycache__/
 
-# docker local data (never commit)
+# docker local data
 **/cf/
 **/storage/
+
+# scratch / bulky extracts
+_pull/
+full-code/
+migrate/
+
+# migration archive = secrets (SIP/admin). Keep on disk, do NOT push to public git.
+mikopbx-migrate.tgz
+mikopbx-full-code.tgz

@@ -1,0 +1,44 @@
+'=== QUEUES ==='
+----------------
+=== QUEUES ===  
+uniqid      name                         extension
+----------  ---------------------------  ---------
+QUEUE-F383  Отдел продаж                 2001     
+QUEUE-D676  Отдел технической поддержки  2002     
+'=== QUEUE MEMBERS ==='
+-----------------------
+=== QUEUE MEMBERS ===  
+queue       extension  priority
+----------  ---------  --------
+QUEUE-D676  204        1       
+QUEUE-F383  205        1       
+QUEUE-F383  204        2       
+'=== INCOMING ==='
+------------------
+=== INCOMING ===  
+id  rulename        number  extension  provider  priority  action   
+--  --------------  ------  ---------  --------  --------  ---------
+1   default action          201                  9999      extension
+13                          2002                 1                  
+'=== OUTGOING ==='
+------------------
+=== OUTGOING ===  
+id  rulename             numberbeginswith  restnumbers  providerid          priority
+--  -------------------  ----------------  -----------  ------------------  --------
+22  Исходящий поддержка  (7|8)             10           SIP-TRUNK-FDB5E281  1       
+'=== TRUNKS (no secrets) ==='
+-----------------------------
+=== TRUNKS (no secrets) ===  
+uniqid              username        host                      registration_type  fromuser     fromdomain                description    disabled
+------------------  --------------  ------------------------  -----------------  -----------  ------------------------  -------------  --------
+SIP-TRUNK-FDB5E281  21261779204443  185862.voice.plusofon.ru  outbound           74956778901  185862.voice.plusofon.ru  МТТ Исходящая  0       
+'=== EXTENSIONS SIP ==='
+------------------------
+=== EXTENSIONS SIP ===  
+number  callerid       
+------  ---------------
+201     Smith James    
+202     Brown Brandon  
+203     Collins Melanie
+204     Тряпкин Максим 
+205     Коробов Тимур  
