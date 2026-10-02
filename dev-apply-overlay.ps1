@@ -22,6 +22,9 @@ docker cp ".\theme\layout-patches" "${name}:/tmp/layout-patches"
 docker cp ".\theme\extensions-patches" "${name}:/tmp/extensions-patches"
 docker cp ".\theme\dashboard-patches" "${name}:/tmp/dashboard-patches"
 docker cp ".\theme\apply-in-container.sh" "${name}:/tmp/apply-in-container.sh"
+if (Test-Path ".\theme\clear-localisation-cache.sh") {
+  docker cp ".\theme\clear-localisation-cache.sh" "${name}:/tmp/clear-localisation-cache.sh"
+}
 docker exec $name sh -c "THEME_SRC=/tmp/skyscale-theme.css sh /tmp/apply-in-container.sh"
 
 # append cdr-filters into custom.css markers if script doesn't

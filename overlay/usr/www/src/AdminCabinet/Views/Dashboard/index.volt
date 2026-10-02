@@ -63,6 +63,7 @@
             <div class="ss-dash-legend">
                 <span><i class="ss-dot is-green"></i> Входящие</span>
                 <span><i class="ss-dot is-purple"></i> Исходящие</span>
+                <span><i class="ss-dot is-red"></i> Пропущенные</span>
             </div>
             <div class="ss-dash-chart-wrap" id="dash-line-chart"></div>
         </div>

@@ -242,6 +242,116 @@ if [ -n "$DASH_DIR" ] && [ -d "$DASH_DIR" ]; then
   echo "ATC Dashboard patched"
 fi
 
+# --- Ensure Dashboard / CallRecordings menu captions in Messages + loc JS cache ---
+python3 - <<'PY'
+from pathlib import Path
+
+def ensure_msg(path: Path, key: str, value: str, after_key: str) -> None:
+    if not path.exists():
+        return
+    t = path.read_text(encoding='utf-8')
+    if f"'{key}'" in t:
+        return
+    needle = f"'{after_key}'"
+    i = t.find(needle)
+    if i < 0:
+        print(f'skip {key}: no anchor {after_key} in {path}')
+        return
+    line_end = t.find('\n', i)
+    addition = f"\n    '{key}' => '{value}',"
+    path.write_text(t[:line_end] + addition + t[line_end:], encoding='utf-8')
+    print(f'added {key} -> {path}')
+
+pairs = [
+    ('/usr/www/src/Common/Messages/ru/Common.php', [
+        ('mm_Dashboard', 'Дашборд', 'mm_CallDetailRecords'),
+        ('BreadcrumbDashboard', 'Дашборд', 'BreadcrumbCallDetailRecords'),
+        ('SubHeaderDashboard', 'Обзор телефонной системы и звонков', 'SubHeaderCallDetailRecords'),
+        ('mm_CallRecordings', 'Записи звонков', 'mm_CallDetailRecords'),
+        ('BreadcrumbCallRecordings', 'Записи звонков', 'BreadcrumbCallDetailRecords'),
+        ('SubHeaderCallRecordings', 'Библиотека записей разговоров', 'SubHeaderCallDetailRecords'),
+    ]),
+    ('/usr/www/src/Common/Messages/en/Common.php', [
+        ('mm_Dashboard', 'Dashboard', 'mm_CallDetailRecords'),
+        ('BreadcrumbDashboard', 'Dashboard', 'BreadcrumbCallDetailRecords'),
+        ('SubHeaderDashboard', 'PBX overview and call analytics', 'SubHeaderCallDetailRecords'),
+        ('mm_CallRecordings', 'Call recordings', 'mm_CallDetailRecords'),
+        ('BreadcrumbCallRecordings', 'Call recordings', 'BreadcrumbCallDetailRecords'),
+        ('SubHeaderCallRecordings', 'Conversation recordings library', 'SubHeaderCallDetailRecords'),
+    ]),
+]
+for path, items in pairs:
+    p = Path(path)
+    for key, value, after in items:
+        ensure_msg(p, key, value, after)
+    # keep offload in sync
+    off = Path(path.replace('/usr/www/', '/offload/rootfs/usr/www/'))
+    if p.exists() and off.parent.exists():
+        off.write_text(p.read_text(encoding='utf-8'), encoding='utf-8')
+        print(f'synced offload {off.name}')
+
+# Inject into minified localization JS (menu uses globalTranslate from cache)
+injections = {
+    'localization-ru': {
+        'anchor': '"mm_CallDetailRecords":"История вызовов"',
+        'add': ',"mm_Dashboard":"Дашборд","BreadcrumbDashboard":"Дашборд","SubHeaderDashboard":"Обзор телефонной системы и звонков","mm_CallRecordings":"Записи звонков","BreadcrumbCallRecordings":"Записи звонков","SubHeaderCallRecordings":"Библиотека записей разговоров"',
+        'need': 'mm_Dashboard',
+    },
+    'localization-en': {
+        'anchor': '"mm_CallDetailRecords":"Call history"',
+        'add': ',"mm_Dashboard":"Dashboard","BreadcrumbDashboard":"Dashboard","SubHeaderDashboard":"PBX overview and call analytics","mm_CallRecordings":"Call recordings","BreadcrumbCallRecordings":"Call recordings","SubHeaderCallRecordings":"Conversation recordings library"',
+        'need': 'mm_Dashboard',
+    },
+}
+cache = Path('/usr/www/sites/admin-cabinet/assets/js/cache')
+if cache.exists():
+    for p in cache.glob('localization-*.min.js'):
+        t = p.read_text(encoding='utf-8', errors='ignore')
+        for prefix, cfg in injections.items():
+            if not p.name.startswith(prefix):
+                continue
+            if cfg['need'] in t:
+                print(f'loc ok {p.name}')
+                continue
+            if cfg['anchor'] not in t:
+                # try alternate anchors
+                alts = [
+                    '"mm_CallDetailRecords":"Call Detail Records"',
+                    '"mm_Extensions":"Сотрудники"',
+                    '"mm_Extensions":"Employees"',
+                ]
+                done = False
+                for a in alts:
+                    if a in t:
+                        p.write_text(t.replace(a, a + cfg['add'], 1), encoding='utf-8')
+                        print(f'loc injected via alt into {p.name}')
+                        done = True
+                        break
+                if not done:
+                    print(f'loc anchor missing {p.name}')
+                continue
+            p.write_text(t.replace(cfg['anchor'], cfg['anchor'] + cfg['add'], 1), encoding='utf-8')
+            print(f'loc injected {p.name}')
+print('localization keys ensured')
+PY
+
+# Bust MessagesProvider ManagedCache so new mm_* keys appear in sidebar
+if [ -f "$BRAND_DIR/../clear-localisation-cache.sh" ]; then
+  sh "$BRAND_DIR/../clear-localisation-cache.sh" || true
+elif [ -f /tmp/clear-localisation-cache.sh ]; then
+  sh /tmp/clear-localisation-cache.sh || true
+else
+  php -r '
+try {
+  $redis = new Redis();
+  if (@$redis->connect("127.0.0.1", 6379, 1.5)) {
+    foreach ($redis->keys("*Localisation*") as $k) { $redis->del($k); }
+    echo "localisation redis cleared\n";
+  }
+} catch (Throwable $e) { echo $e->getMessage(),"\n"; }
+' || true
+fi
+
 # --- Default home page after login → Dashboard ---
 python3 - <<'PY'
 from pathlib import Path

@@ -199,10 +199,12 @@ const dashApp = {
         const labels = [];
         const inn = [];
         const out = [];
+        const miss = [];
         for (let h = 0; h < 24; h++) {
             labels.push(`${String(h).padStart(2, '0')}:00`);
             inn.push(0);
             out.push(0);
+            miss.push(0);
         }
         (recs || []).forEach((g) => {
             const c = dashApp.classify(g);
@@ -210,15 +212,17 @@ const dashApp = {
             if (h >= 0 && h < 24) {
                 if (c.incoming) inn[h] += 1;
                 else out[h] += 1;
+                if (c.missed) miss[h] += 1;
             }
         });
-        return { labels, inn, out };
+        return { labels, inn, out, miss };
     },
 
     dayBuckets(recs, days) {
         const labels = [];
         const inn = [];
         const out = [];
+        const miss = [];
         const index = {};
         for (let i = days - 1; i >= 0; i--) {
             const d = moment().subtract(i, 'day');
@@ -227,6 +231,7 @@ const dashApp = {
             labels.push(d.format('DD.MM'));
             inn.push(0);
             out.push(0);
+            miss.push(0);
         }
         (recs || []).forEach((g) => {
             const key = moment(g.start).format('YYYY-MM-DD');
@@ -234,16 +239,17 @@ const dashApp = {
             const c = dashApp.classify(g);
             if (c.incoming) inn[index[key]] += 1;
             else out[index[key]] += 1;
+            if (c.missed) miss[index[key]] += 1;
         });
-        return { labels, inn, out };
+        return { labels, inn, out, miss };
     },
 
     renderDynamics() {
-        const { labels, inn, out } = dashApp.bucketsForRange();
+        const { labels, inn, out, miss } = dashApp.bucketsForRange();
         const w = 640;
         const h = 220;
         const pad = { t: 16, r: 12, b: 28, l: 32 };
-        const max = Math.max(1, ...inn, ...out);
+        const max = Math.max(1, ...inn, ...out, ...miss);
         const n = labels.length;
         const x = (i) => pad.l + (i / Math.max(1, n - 1)) * (w - pad.l - pad.r);
         const y = (v) => pad.t + (1 - v / max) * (h - pad.t - pad.b);
@@ -266,10 +272,12 @@ const dashApp = {
         const svg = `
 <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
   ${grid.join('')}
-  <path d="${area(inn)}" fill="rgba(34,197,94,0.12)"></path>
-  <path d="${area(out)}" fill="rgba(139,92,246,0.10)"></path>
+  <path d="${area(inn)}" fill="rgba(34,197,94,0.10)"></path>
+  <path d="${area(out)}" fill="rgba(139,92,246,0.08)"></path>
+  <path d="${area(miss)}" fill="rgba(229,57,53,0.08)"></path>
   <path d="${path(inn)}" fill="none" stroke="#22C55E" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path>
   <path d="${path(out)}" fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path>
+  <path d="${path(miss)}" fill="none" stroke="#E53935" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="5 4"></path>
   ${xLabels}
 </svg>`;
         $('#dash-line-chart').html(svg);

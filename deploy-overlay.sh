@@ -21,6 +21,7 @@ docker exec "$CONTAINER" sh -c 'mkdir -p /offload/rootfs/usr/www/sites/admin-cab
 echo "== apply theme + CDR/Dashboard/Recordings patches =="
 docker cp "$THEME/skyscale-theme.css" "$CONTAINER:/tmp/skyscale-theme.css"
 docker cp "$THEME/apply-in-container.sh" "$CONTAINER:/tmp/apply-in-container.sh"
+docker cp "$THEME/clear-localisation-cache.sh" "$CONTAINER:/tmp/clear-localisation-cache.sh" 2>/dev/null || true
 docker cp "$THEME/cdr-patches" "$CONTAINER:/tmp/cdr-patches"
 docker cp "$THEME/layout-patches" "$CONTAINER:/tmp/layout-patches"
 docker cp "$THEME/extensions-patches" "$CONTAINER:/tmp/extensions-patches"
