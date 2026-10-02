@@ -16,7 +16,7 @@
  * If not, see <https://www.gnu.org/licenses/>.
  */
 
-/* global globalRootUrl, SemanticLocalization, ExtensionsAPI, moment, globalTranslate, CDRPlayer, CdrAPI, UserMessage, ACLHelper, SecurityUtils */
+/* global globalRootUrl, SemanticLocalization, ExtensionsAPI, moment, globalTranslate, CDRPlayer, CdrAPI, UserMessage, ACLHelper, SecurityUtils, TokenManager */
 
 /**
  * callDetailRecords module.
@@ -925,19 +925,22 @@ const callDetailRecords = {
                 if (typeof UserMessage !== 'undefined') {
                     UserMessage.showInformation('Нет данных для выгрузки по текущим фильтрам');
                 }
+                $btn.removeClass('loading disabled');
                 return;
             }
             const rows = callDetailRecords.groupsToExportRows(groups);
-            if (format === 'xls') {
-                callDetailRecords.downloadXls(rows, 'call-history.xls');
-            } else {
-                callDetailRecords.downloadCsv(rows, 'call-history.csv');
-            }
+            callDetailRecords.attachTranscriptTexts(rows).always(() => {
+                if (format === 'xls') {
+                    callDetailRecords.downloadXls(rows, 'call-history.xls');
+                } else {
+                    callDetailRecords.downloadCsv(rows, 'call-history.csv');
+                }
+                $btn.removeClass('loading disabled');
+            });
         }).fail(() => {
             if (typeof UserMessage !== 'undefined') {
                 UserMessage.showError('Не удалось выгрузить данные');
             }
-        }).always(() => {
             $btn.removeClass('loading disabled');
         });
     },
@@ -976,9 +979,135 @@ const callDetailRecords = {
                 'Разговор сек': billsec,
                 'Ожидание': fmt(wait),
                 'Разговор': fmt(billsec),
+                'Расшифровка': '',
                 'linkedid': g.linkedid || '',
             };
         });
+    },
+
+    /**
+     * Fills the «Расшифровка» column via Cloud STT lookup + transcript detail.
+     * Missing transcripts stay empty; lookup failures do not abort the file.
+     */
+    attachTranscriptTexts(rows) {
+        const deferred = $.Deferred();
+        const ids = [];
+        rows.forEach((row) => {
+            const id = String(row.linkedid || '').trim();
+            if (id && ids.indexOf(id) === -1) ids.push(id);
+        });
+        if (!ids.length) {
+            deferred.resolve(rows);
+            return deferred.promise();
+        }
+
+        const headers = {};
+        if (typeof TokenManager !== 'undefined' && TokenManager.accessToken) {
+            headers.Authorization = `Bearer ${TokenManager.accessToken}`;
+        }
+
+        const lookupUrl = '/pbxcore/api/v3/module-cloud-speech-to-text/cdr-transcript-lookups';
+        const batches = [];
+        for (let offset = 0; offset < ids.length; offset += 100) {
+            batches.push(ids.slice(offset, offset + 100));
+        }
+
+        const map = {};
+        const lookupBatch = (index) => {
+            if (index >= batches.length) {
+                callDetailRecords.fetchTranscriptsForRows(rows, map, headers).always(() => deferred.resolve(rows));
+                return;
+            }
+            $.ajax({
+                url: lookupUrl,
+                method: 'POST',
+                contentType: 'application/json; charset=utf-8',
+                dataType: 'json',
+                headers,
+                data: JSON.stringify({ call_ids: batches[index] }),
+            }).done((response) => {
+                const data = (response && response.data) ? response.data : (response || {});
+                const part = (data && data.transcript_map) ? data.transcript_map : {};
+                Object.keys(part).forEach((k) => {
+                    map[k] = part[k];
+                });
+            }).always(() => {
+                lookupBatch(index + 1);
+            });
+        };
+        lookupBatch(0);
+        return deferred.promise();
+    },
+
+    fetchTranscriptsForRows(rows, map, headers) {
+        const jobs = [];
+        rows.forEach((row) => {
+            const callId = String(row.linkedid || '').trim();
+            const publicId = map[callId] ? String(map[callId]) : '';
+            if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(publicId)) {
+                row['Расшифровка'] = '';
+                return;
+            }
+            jobs.push({ row, publicId });
+        });
+        const inner = $.Deferred();
+        if (!jobs.length) {
+            inner.resolve();
+            return inner.promise();
+        }
+        let cursor = 0;
+        let active = 0;
+        const limit = 6;
+        const kick = () => {
+            if (cursor >= jobs.length && active === 0) {
+                inner.resolve();
+                return;
+            }
+            while (active < limit && cursor < jobs.length) {
+                const job = jobs[cursor];
+                cursor += 1;
+                active += 1;
+                $.ajax({
+                    url: `/pbxcore/api/v3/module-cloud-speech-to-text/transcripts/${encodeURIComponent(job.publicId)}`,
+                    method: 'GET',
+                    dataType: 'json',
+                    headers,
+                }).done((response) => {
+                    job.row['Расшифровка'] = callDetailRecords.normalizeExportText(
+                        callDetailRecords.extractTranscriptText(response),
+                    );
+                }).fail(() => {
+                    job.row['Расшифровка'] = '';
+                }).always(() => {
+                    active -= 1;
+                    kick();
+                });
+            }
+        };
+        kick();
+        return inner.promise();
+    },
+
+    extractTranscriptText(payload) {
+        const data = (payload && payload.data && typeof payload.data === 'object') ? payload.data : payload;
+        if (!data || typeof data !== 'object') return '';
+        if (data.transcript && typeof data.transcript.text === 'string') return data.transcript.text;
+        if (typeof data.search_text === 'string') return data.search_text;
+        if (typeof data.plain_text === 'string') return data.plain_text;
+        const segs = data.transcript && Array.isArray(data.transcript.segments)
+            ? data.transcript.segments
+            : (Array.isArray(data.segments) ? data.segments : []);
+        if (segs.length) {
+            return segs.map((s) => (s && s.text) ? String(s.text) : '').filter(Boolean).join(' ');
+        }
+        return '';
+    },
+
+    normalizeExportText(text) {
+        return String(text || '')
+            .replace(/\[unknown]\s*/gi, '')
+            .replace(/\s+/g, ' ')
+            .trim();
     },
 
     downloadCsv(rows, filename) {

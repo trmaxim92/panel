@@ -1,0 +1,66 @@
+/* SkyScale STT / Whisper settings page */
+
+body.ss-stt-route #page-header.ui.header,
+body:has(.ss-stt-page) #page-header.ui.header,
+#main-content-container:has(.ss-stt-page) > #page-header.ui.header,
+#main-content-container:has(.ss-stt-page) > h1#page-header {
+  display: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  visibility: hidden !important;
+}
+
+.ss-stt-page {
+  max-width: 720px;
+  padding: 24px 20px 48px;
+}
+.ss-stt-head {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  margin-bottom: 18px;
+}
+.ss-stt-ico {
+  width: 48px; height: 48px; border-radius: 50%;
+  background: #EEF4FF; color: #2F6FED;
+  display: flex; align-items: center; justify-content: center;
+}
+.ss-stt-ico i.icon { margin: 0 !important; color: #2F6FED !important; }
+.ss-stt-head h1 {
+  margin: 0 !important;
+  font-size: 26px !important;
+  font-weight: 800 !important;
+  color: #1A1D27 !important;
+}
+.ss-stt-head p { margin: 4px 0 0; color: #8B90A0; font-size: 13.5px; }
+.ss-stt-card {
+  background: #fff;
+  border: 1px solid #E6E8EF;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0,0,0,.04);
+  padding: 20px 22px;
+}
+.ss-stt-status { margin-bottom: 14px; }
+.ss-stt-pill {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.ss-stt-pill.is-ok { background: #F0FDF4; color: #15803D; }
+.ss-stt-pill.is-bad { background: #FDECEE; color: #E53935; }
+.ss-stt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.ss-stt-hint {
+  margin-top: 14px;
+  font-size: 12.5px;
+  color: #8B90A0;
+  line-height: 1.45;
+}

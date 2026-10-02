@@ -41,6 +41,22 @@ $crCss = Join-Path $O 'sites\admin-cabinet\assets\css\CallRecordings'
 New-Item -ItemType Directory -Force -Path $crCss | Out-Null
 Copy-Item -Force (Join-Path $cr 'call-recordings.css') (Join-Path $crCss 'call-recordings.css')
 
+# SkyScale STT settings
+$stt = Join-Path $Root 'theme\stt-patches'
+if (Test-Path $stt) {
+  Copy-Item -Force (Join-Path $stt 'SkyscaleSttController.php') (Join-Path $O 'src\AdminCabinet\Controllers\SkyscaleSttController.php')
+  $sttView = Join-Path $O 'src\AdminCabinet\Views\SkyscaleStt'
+  New-Item -ItemType Directory -Force -Path $sttView | Out-Null
+  if (Test-Path (Join-Path $stt 'views\index.volt')) {
+    Copy-Item -Force (Join-Path $stt 'views\index.volt') (Join-Path $sttView 'index.volt')
+  }
+  $sttCss = Join-Path $O 'sites\admin-cabinet\assets\css\SkyscaleStt'
+  New-Item -ItemType Directory -Force -Path $sttCss | Out-Null
+  if (Test-Path (Join-Path $stt 'skyscale-stt.css')) {
+    Copy-Item -Force (Join-Path $stt 'skyscale-stt.css') (Join-Path $sttCss 'skyscale-stt.css')
+  }
+}
+
 # ATC Dashboard
 Copy-Item -Force (Join-Path $D 'DashboardController.php') (Join-Path $O 'src\AdminCabinet\Controllers\DashboardController.php')
 $dashView = Join-Path $O 'src\AdminCabinet\Views\Dashboard'
@@ -60,6 +76,7 @@ New-Item -ItemType Directory -Force -Path $partials | Out-Null
   'leftsidebar.volt',
   'topMenu.volt',
   'mainHeader.volt',
+  'modulesHeader.volt',
   'emptyTablePlaceholder.volt',
   'tablesbuttons.volt'
 ) | ForEach-Object {

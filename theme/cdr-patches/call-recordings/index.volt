@@ -10,6 +10,48 @@
         </div>
     </div>
 
+    <div class="ss-rec-storage" id="rec-storage-panel">
+        <div class="ss-rec-storage-main">
+            <div class="ss-rec-storage-label">Занято записями</div>
+            <div class="ss-rec-storage-value" id="rec-storage-value">—</div>
+            <div class="ss-rec-storage-bar" aria-hidden="true">
+                <div class="ss-rec-storage-bar-fill" id="rec-storage-bar-fill" style="width:0%"></div>
+            </div>
+            <div class="ss-rec-storage-sub" id="rec-storage-sub">Считаем место на диске…</div>
+        </div>
+        <div class="ss-rec-storage-actions">
+            <div class="ss-field ss-rec-retention-field">
+                <label>Срок хранения / очистки</label>
+                <div class="ui fluid selection dropdown" id="rec-retention-period">
+                    <input type="hidden" name="rec-retention-period" value="90">
+                    <i class="dropdown icon"></i>
+                    <div class="default text">90 дней</div>
+                    <div class="menu">
+                        <div class="item" data-value="7">7 дней</div>
+                        <div class="item" data-value="14">14 дней</div>
+                        <div class="item" data-value="30">30 дней</div>
+                        <div class="item active selected" data-value="90">90 дней</div>
+                        <div class="item" data-value="180">180 дней</div>
+                        <div class="item" data-value="360">360 дней</div>
+                        <div class="item" data-value="1080">3 года</div>
+                        <div class="item" data-value="">Без ограничения</div>
+                    </div>
+                </div>
+            </div>
+            <div class="ss-rec-storage-btns">
+                <button type="button" class="ui button" id="rec-retention-save">
+                    <i class="save icon"></i> Сохранить срок
+                </button>
+                <button type="button" class="ui primary button" id="rec-purge-btn">
+                    <i class="trash alternate outline icon"></i> Очистить старые
+                </button>
+            </div>
+            <div class="ss-rec-storage-hint" id="rec-storage-hint">
+                «Очистить старые» удалит файлы записей старше выбранного срока.
+            </div>
+        </div>
+    </div>
+
     <div id="rec-filters-panel" class="ss-cdr-panel ss-rec-panel">
         <div class="ss-cdr-toolbar">
             <div class="ss-field ss-field-period">
@@ -110,6 +152,7 @@
                 <th>Кто звонил</th>
                 <th>С кем говорил</th>
                 <th>Разговор</th>
+                <th class="collapsing">Текст</th>
                 <th class="collapsing"></th>
             </tr>
             </thead>

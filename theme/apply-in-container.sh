@@ -145,13 +145,79 @@ PARTIALS=/usr/www/src/AdminCabinet/Views/partials
 OFF_PARTIALS=/offload/rootfs/usr/www/src/AdminCabinet/Views/partials
 if [ -n "$LAYOUT_DIR" ] && [ -d "$PARTIALS" ]; then
   mkdir -p "$OFF_PARTIALS"
-  for f in leftsidebar.volt topMenu.volt mainHeader.volt emptyTablePlaceholder.volt tablesbuttons.volt; do
+  for f in leftsidebar.volt topMenu.volt mainHeader.volt modulesHeader.volt emptyTablePlaceholder.volt tablesbuttons.volt; do
     if [ -f "$LAYOUT_DIR/$f" ]; then
       cp "$LAYOUT_DIR/$f" "$PARTIALS/$f"
       cp "$LAYOUT_DIR/$f" "$OFF_PARTIALS/$f" 2>/dev/null || true
     fi
   done
   echo "Layout partials patched"
+fi
+
+# --- Active Calls monitor (ModuleMonitorActiveCalls) ---
+MON_DIR=
+if [ -d "$BRAND_DIR/../monitor-patches" ]; then
+  MON_DIR="$BRAND_DIR/../monitor-patches"
+elif [ -d /theme/monitor-patches ]; then
+  MON_DIR=/theme/monitor-patches
+elif [ -d /tmp/monitor-patches ]; then
+  MON_DIR=/tmp/monitor-patches
+fi
+if [ -n "$MON_DIR" ] && [ -d "$MON_DIR" ]; then
+  MON_MOD=/storage/usbdisk1/mikopbx/custom_modules/ModuleMonitorActiveCalls
+  if [ -f "$MON_MOD/App/Controllers/ModuleMonitorActiveCallsController.php" ]; then
+    # Strip vendor logo from module header
+    sed -i 's|$this->view->logoImagePath = .*|$this->view->logoImagePath = '"''"';|' \
+      "$MON_MOD/App/Controllers/ModuleMonitorActiveCallsController.php" 2>/dev/null || true
+  fi
+  # Inject CSS into custom.css
+  if [ -f "$MON_DIR/monitor-active-calls.css" ] && [ -f "$CSS" ]; then
+    if grep -q 'ss-monitor-page-begin' "$CSS"; then
+      awk '/ss-monitor-page-begin/{exit} {print}' "$CSS" > /tmp/custom.css.nomon
+      cp /tmp/custom.css.nomon "$CSS"
+    fi
+    {
+      echo ''
+      echo '/* ss-monitor-page-begin */'
+      cat "$MON_DIR/monitor-active-calls.css"
+      echo '/* ss-monitor-page-end */'
+    } >> "$CSS"
+    # Also refresh module CSS cache copy
+    mkdir -p "$MON_MOD/public/assets/css" \
+             /usr/www/sites/admin-cabinet/assets/css/cache/ModuleMonitorActiveCalls \
+             /offload/rootfs/usr/www/sites/admin-cabinet/assets/css/cache/ModuleMonitorActiveCalls
+    {
+      cat "$MON_MOD/public/assets/css/module-monitor-active-calls.css" 2>/dev/null || true
+      echo ''
+      echo '/* ss-monitor-page-begin */'
+      cat "$MON_DIR/monitor-active-calls.css"
+      echo '/* ss-monitor-page-end */'
+    } > /tmp/module-monitor-active-calls.css.merged
+    # Keep original module css + our overrides in cache path used by AssetManager
+    if [ -f "$MON_DIR/monitor-active-calls.css" ]; then
+      cat "$MON_DIR/monitor-active-calls.css" > /usr/www/sites/admin-cabinet/assets/css/cache/ModuleMonitorActiveCalls/module-monitor-active-calls.css 2>/dev/null || true
+      # Prefer appending overrides onto original module stylesheet in cache
+      if [ -f "$MON_MOD/public/assets/css/module-monitor-active-calls.css" ]; then
+        {
+          cat "$MON_MOD/public/assets/css/module-monitor-active-calls.css"
+          echo ''
+          cat "$MON_DIR/monitor-active-calls.css"
+        } > /usr/www/sites/admin-cabinet/assets/css/cache/ModuleMonitorActiveCalls/module-monitor-active-calls.css
+        cp /usr/www/sites/admin-cabinet/assets/css/cache/ModuleMonitorActiveCalls/module-monitor-active-calls.css \
+           /offload/rootfs/usr/www/sites/admin-cabinet/assets/css/cache/ModuleMonitorActiveCalls/module-monitor-active-calls.css 2>/dev/null || true
+      fi
+    fi
+  fi
+  if [ -f "$MON_DIR/monitor-active-calls.js" ]; then
+    mkdir -p /usr/www/sites/admin-cabinet/assets/js/pbx/ModuleMonitorActiveCalls \
+             /offload/rootfs/usr/www/sites/admin-cabinet/assets/js/pbx/ModuleMonitorActiveCalls
+    cp "$MON_DIR/monitor-active-calls.js" /usr/www/sites/admin-cabinet/assets/js/pbx/ModuleMonitorActiveCalls/monitor-active-calls.js
+    cp "$MON_DIR/monitor-active-calls.js" /offload/rootfs/usr/www/sites/admin-cabinet/assets/js/pbx/ModuleMonitorActiveCalls/monitor-active-calls.js 2>/dev/null || true
+    # IMPORTANT: js/cache/ModuleMonitorActiveCalls/* is the module public file (symlink/bind).
+    # Never overwrite it — boot JS is loaded from modulesHeader.volt instead.
+  fi
+  find /usr/www/sites/admin-cabinet/assets/js/cache -type f \( -name '*-footer.js' -o -name '*-header.js' \) -delete 2>/dev/null || true
+  echo "Active Calls monitor patched"
 fi
 
 # --- Extensions (Employees) page ---
@@ -175,12 +241,18 @@ fi
 # Call recordings volt/js/css if present in cdr-patches
 if [ -n "$CDR_PATCH_DIR" ] && [ -d "$CDR_PATCH_DIR/call-recordings" ]; then
   CR="$CDR_PATCH_DIR/call-recordings"
-  mkdir -p /usr/www/src/AdminCabinet/Views/CallRecordings \
+  mkdir -p /usr/www/src/AdminCabinet/Controllers \
+           /usr/www/src/AdminCabinet/Views/CallRecordings \
            /usr/www/sites/admin-cabinet/assets/js/pbx/CallRecordings \
            /usr/www/sites/admin-cabinet/assets/css/CallRecordings \
+           /offload/rootfs/usr/www/src/AdminCabinet/Controllers \
+           /offload/rootfs/usr/www/src/AdminCabinet/Views/CallRecordings \
            /offload/rootfs/usr/www/sites/admin-cabinet/assets/js/pbx/CallRecordings \
            /offload/rootfs/usr/www/sites/admin-cabinet/assets/css/CallRecordings
+  [ -f "$CR/CallRecordingsController.php" ] && cp "$CR/CallRecordingsController.php" /usr/www/src/AdminCabinet/Controllers/CallRecordingsController.php
+  [ -f "$CR/CallRecordingsController.php" ] && cp "$CR/CallRecordingsController.php" /offload/rootfs/usr/www/src/AdminCabinet/Controllers/CallRecordingsController.php 2>/dev/null || true
   [ -f "$CR/index.volt" ] && cp "$CR/index.volt" /usr/www/src/AdminCabinet/Views/CallRecordings/index.volt
+  [ -f "$CR/index.volt" ] && cp "$CR/index.volt" /offload/rootfs/usr/www/src/AdminCabinet/Views/CallRecordings/index.volt 2>/dev/null || true
   [ -f "$CR/call-recordings-index.js" ] && cp "$CR/call-recordings-index.js" /usr/www/sites/admin-cabinet/assets/js/pbx/CallRecordings/call-recordings-index.js
   [ -f "$CR/call-recordings-index.js" ] && cp "$CR/call-recordings-index.js" /offload/rootfs/usr/www/sites/admin-cabinet/assets/js/pbx/CallRecordings/call-recordings-index.js
   [ -f "$CR/call-recordings.css" ] && cp "$CR/call-recordings.css" /usr/www/sites/admin-cabinet/assets/css/CallRecordings/call-recordings.css
@@ -199,6 +271,111 @@ if [ -n "$CDR_PATCH_DIR" ] && [ -d "$CDR_PATCH_DIR/call-recordings" ]; then
     } >> "$CSS"
   fi
   echo "Call recordings patched"
+fi
+
+# --- Local Whisper / ModuleCloudSpeechToText provider patches ---
+STT_DIR=
+if [ -d "$BRAND_DIR/../stt-patches" ]; then
+  STT_DIR="$BRAND_DIR/../stt-patches"
+elif [ -d /theme/stt-patches ]; then
+  STT_DIR=/theme/stt-patches
+elif [ -d /tmp/stt-patches ]; then
+  STT_DIR=/tmp/stt-patches
+fi
+STT_MOD=/storage/usbdisk1/mikopbx/custom_modules/ModuleCloudSpeechToText
+if [ -n "$STT_DIR" ] && [ -d "$STT_MOD" ]; then
+  mkdir -p "$STT_MOD/Lib/SpeechMikoLabV1" "$STT_MOD/Lib/Processing" "$STT_MOD/db/private"
+  [ -f "$STT_DIR/SkyscaleProviderConfig.php" ] && cp "$STT_DIR/SkyscaleProviderConfig.php" "$STT_MOD/Lib/SkyscaleProviderConfig.php"
+  [ -f "$STT_DIR/LocalWhisperAdapter.php" ] && cp "$STT_DIR/LocalWhisperAdapter.php" "$STT_MOD/Lib/SpeechMikoLabV1/LocalWhisperAdapter.php"
+  if [ -f "$STT_DIR/ProductionProcessingRuntimeFactory.php" ]; then
+    # Backup once, then overlay factory
+    if [ ! -f "$STT_MOD/Lib/Processing/ProductionProcessingRuntimeFactory.php.skyscale-bak" ] \
+       && [ -f "$STT_MOD/Lib/Processing/ProductionProcessingRuntimeFactory.php" ]; then
+      cp "$STT_MOD/Lib/Processing/ProductionProcessingRuntimeFactory.php" \
+         "$STT_MOD/Lib/Processing/ProductionProcessingRuntimeFactory.php.skyscale-bak"
+    fi
+    cp "$STT_DIR/ProductionProcessingRuntimeFactory.php" "$STT_MOD/Lib/Processing/ProductionProcessingRuntimeFactory.php"
+    # Guard against UTF-16 copies from Windows hosts
+    python3 - <<'PY'
+from pathlib import Path
+p = Path("/storage/usbdisk1/mikopbx/custom_modules/ModuleCloudSpeechToText/Lib/Processing/ProductionProcessingRuntimeFactory.php")
+b = p.read_bytes()
+if len(b) >= 4 and b[0] == 0x3C and b[1] == 0x00:
+    p.write_bytes(b.decode("utf-16-le").encode("utf-8"))
+    print("converted factory UTF-16 -> UTF-8")
+PY
+  fi
+
+  # SkyScale STT settings page (AdminCabinet)
+  mkdir -p /usr/www/src/AdminCabinet/Controllers \
+           /usr/www/src/AdminCabinet/Views/SkyscaleStt \
+           /usr/www/sites/admin-cabinet/assets/css/SkyscaleStt \
+           /offload/rootfs/usr/www/src/AdminCabinet/Controllers \
+           /offload/rootfs/usr/www/src/AdminCabinet/Views/SkyscaleStt \
+           /offload/rootfs/usr/www/sites/admin-cabinet/assets/css/SkyscaleStt
+  [ -f "$STT_DIR/SkyscaleSttController.php" ] && cp "$STT_DIR/SkyscaleSttController.php" /usr/www/src/AdminCabinet/Controllers/SkyscaleSttController.php
+  [ -f "$STT_DIR/SkyscaleSttController.php" ] && cp "$STT_DIR/SkyscaleSttController.php" /offload/rootfs/usr/www/src/AdminCabinet/Controllers/SkyscaleSttController.php 2>/dev/null || true
+  [ -f "$STT_DIR/views/index.volt" ] && cp "$STT_DIR/views/index.volt" /usr/www/src/AdminCabinet/Views/SkyscaleStt/index.volt
+  [ -f "$STT_DIR/views/index.volt" ] && cp "$STT_DIR/views/index.volt" /offload/rootfs/usr/www/src/AdminCabinet/Views/SkyscaleStt/index.volt 2>/dev/null || true
+  [ -f "$STT_DIR/skyscale-stt.css" ] && cp "$STT_DIR/skyscale-stt.css" /usr/www/sites/admin-cabinet/assets/css/SkyscaleStt/skyscale-stt.css
+  [ -f "$STT_DIR/skyscale-stt.css" ] && cp "$STT_DIR/skyscale-stt.css" /offload/rootfs/usr/www/sites/admin-cabinet/assets/css/SkyscaleStt/skyscale-stt.css 2>/dev/null || true
+  if [ -f "$STT_DIR/skyscale-stt.css" ] && [ -f "$CSS" ]; then
+    if grep -q 'ss-stt-page-begin' "$CSS"; then
+      awk '/ss-stt-page-begin/{exit} {print}' "$CSS" > /tmp/custom.css.nostt
+      cp /tmp/custom.css.nostt "$CSS"
+    fi
+    {
+      echo ''
+      echo '/* ss-stt-page-begin */'
+      cat "$STT_DIR/skyscale-stt.css"
+      echo '/* ss-stt-page-end */'
+    } >> "$CSS"
+  fi
+
+  # Strip Miko logo from Cloud STT module header (same approach as Active Calls)
+  if [ -f "$STT_MOD/App/Controllers/ModuleCloudSpeechToTextController.php" ]; then
+    sed -i 's|$this->view->logoImagePath = .*|$this->view->logoImagePath = '"''"';|' \
+      "$STT_MOD/App/Controllers/ModuleCloudSpeechToTextController.php" 2>/dev/null || true
+  fi
+
+  # In-page transcript modal on Call Recordings (do not navigate to the STT module)
+  if [ -f "$STT_DIR/patch-cdr-modal-on-recordings.sh" ]; then
+    sh "$STT_DIR/patch-cdr-modal-on-recordings.sh" || true
+  fi
+
+  # Install / start faster-whisper sidecar
+  if [ -f "$STT_DIR/whisper-sidecar/install-in-container.sh" ]; then
+    sh "$STT_DIR/whisper-sidecar/install-in-container.sh" "$STT_DIR" || true
+  fi
+  if [ -f "$STT_MOD/db/private/skyscale-provider.json" ]; then
+    chown www:disk "$STT_MOD/db/private/skyscale-provider.json" 2>/dev/null || true
+    chmod 664 "$STT_MOD/db/private/skyscale-provider.json" 2>/dev/null || true
+  fi
+
+  # Keep-alive helper (best-effort; never abort theme apply)
+  ENSURE="$STT_MOD/db/private/whisper-sidecar/ensure-running.sh"
+  if [ -x "$ENSURE" ]; then
+    mkdir -p /usr/local/bin 2>/dev/null || true
+    if [ -d /usr/local/bin ]; then
+      cat > /usr/local/bin/skyscale-whisper-ensure <<EOF
+#!/bin/sh
+exec sh "$ENSURE"
+EOF
+      chmod +x /usr/local/bin/skyscale-whisper-ensure 2>/dev/null || true
+      (crontab -l 2>/dev/null | grep -v skyscale-whisper-ensure; echo '*/2 * * * * /usr/local/bin/skyscale-whisper-ensure >/dev/null 2>&1') | crontab - 2>/dev/null || true
+    else
+      # Fallback: drop into module private + optional busybox crond
+      WRAP="$STT_MOD/db/private/whisper-sidecar/skyscale-whisper-ensure"
+      cat > "$WRAP" <<EOF
+#!/bin/sh
+exec sh "$ENSURE"
+EOF
+      chmod +x "$WRAP" 2>/dev/null || true
+      (crontab -l 2>/dev/null | grep -v skyscale-whisper-ensure; echo "*/2 * * * * $WRAP >/dev/null 2>&1") | crontab - 2>/dev/null || true
+    fi
+  fi
+
+  echo "Local Whisper STT patches applied"
 fi
 
 # --- ATC Dashboard ---
@@ -270,6 +447,9 @@ pairs = [
         ('mm_CallRecordings', 'Записи звонков', 'mm_CallDetailRecords'),
         ('BreadcrumbCallRecordings', 'Записи звонков', 'BreadcrumbCallDetailRecords'),
         ('SubHeaderCallRecordings', 'Библиотека записей разговоров', 'SubHeaderCallDetailRecords'),
+        ('mm_SkyscaleStt', 'Транскрибация Whisper', 'mm_CallRecordings'),
+        ('BreadcrumbSkyscaleStt', 'Транскрибация Whisper', 'BreadcrumbCallRecordings'),
+        ('SubHeaderSkyscaleStt', 'Локальный Whisper / облако Miko Lab', 'SubHeaderCallRecordings'),
     ]),
     ('/usr/www/src/Common/Messages/en/Common.php', [
         ('mm_Dashboard', 'Dashboard', 'mm_CallDetailRecords'),
@@ -278,6 +458,9 @@ pairs = [
         ('mm_CallRecordings', 'Call recordings', 'mm_CallDetailRecords'),
         ('BreadcrumbCallRecordings', 'Call recordings', 'BreadcrumbCallDetailRecords'),
         ('SubHeaderCallRecordings', 'Conversation recordings library', 'SubHeaderCallDetailRecords'),
+        ('mm_SkyscaleStt', 'Whisper transcription', 'mm_CallRecordings'),
+        ('BreadcrumbSkyscaleStt', 'Whisper transcription', 'BreadcrumbCallRecordings'),
+        ('SubHeaderSkyscaleStt', 'Local Whisper / Miko Lab cloud', 'SubHeaderCallRecordings'),
     ]),
 ]
 for path, items in pairs:
@@ -293,14 +476,40 @@ for path, items in pairs:
 # Inject into minified localization JS (menu uses globalTranslate from cache)
 injections = {
     'localization-ru': {
-        'anchor': '"mm_CallDetailRecords":"История вызовов"',
-        'add': ',"mm_Dashboard":"Дашборд","BreadcrumbDashboard":"Дашборд","SubHeaderDashboard":"Обзор телефонной системы и звонков","mm_CallRecordings":"Записи звонков","BreadcrumbCallRecordings":"Записи звонков","SubHeaderCallRecordings":"Библиотека записей разговоров"',
-        'need': 'mm_Dashboard',
+        'keys': {
+            'mm_Dashboard': 'Дашборд',
+            'BreadcrumbDashboard': 'Дашборд',
+            'SubHeaderDashboard': 'Обзор телефонной системы и звонков',
+            'mm_CallRecordings': 'Записи звонков',
+            'BreadcrumbCallRecordings': 'Записи звонков',
+            'SubHeaderCallRecordings': 'Библиотека записей разговоров',
+            'mm_SkyscaleStt': 'Транскрибация Whisper',
+            'BreadcrumbSkyscaleStt': 'Транскрибация Whisper',
+            'SubHeaderSkyscaleStt': 'Локальный Whisper / облако Miko Lab',
+        },
+        'anchors': [
+            '"mm_CallDetailRecords":"История вызовов"',
+            '"mm_CallDetailRecords":"Call Detail Records"',
+            '"mm_Extensions":"Сотрудники"',
+        ],
     },
     'localization-en': {
-        'anchor': '"mm_CallDetailRecords":"Call history"',
-        'add': ',"mm_Dashboard":"Dashboard","BreadcrumbDashboard":"Dashboard","SubHeaderDashboard":"PBX overview and call analytics","mm_CallRecordings":"Call recordings","BreadcrumbCallRecordings":"Call recordings","SubHeaderCallRecordings":"Conversation recordings library"',
-        'need': 'mm_Dashboard',
+        'keys': {
+            'mm_Dashboard': 'Dashboard',
+            'BreadcrumbDashboard': 'Dashboard',
+            'SubHeaderDashboard': 'PBX overview and call analytics',
+            'mm_CallRecordings': 'Call recordings',
+            'BreadcrumbCallRecordings': 'Call recordings',
+            'SubHeaderCallRecordings': 'Conversation recordings library',
+            'mm_SkyscaleStt': 'Whisper transcription',
+            'BreadcrumbSkyscaleStt': 'Whisper transcription',
+            'SubHeaderSkyscaleStt': 'Local Whisper / Miko Lab cloud',
+        },
+        'anchors': [
+            '"mm_CallDetailRecords":"Call history"',
+            '"mm_CallDetailRecords":"Call Detail Records"',
+            '"mm_Extensions":"Employees"',
+        ],
     },
 }
 cache = Path('/usr/www/sites/admin-cabinet/assets/js/cache')
@@ -310,28 +519,34 @@ if cache.exists():
         for prefix, cfg in injections.items():
             if not p.name.startswith(prefix):
                 continue
-            if cfg['need'] in t:
+            missing = {k: v for k, v in cfg['keys'].items() if f'"{k}"' not in t}
+            if not missing:
                 print(f'loc ok {p.name}')
                 continue
-            if cfg['anchor'] not in t:
-                # try alternate anchors
-                alts = [
-                    '"mm_CallDetailRecords":"Call Detail Records"',
-                    '"mm_Extensions":"Сотрудники"',
-                    '"mm_Extensions":"Employees"',
-                ]
-                done = False
-                for a in alts:
-                    if a in t:
-                        p.write_text(t.replace(a, a + cfg['add'], 1), encoding='utf-8')
-                        print(f'loc injected via alt into {p.name}')
-                        done = True
-                        break
-                if not done:
-                    print(f'loc anchor missing {p.name}')
-                continue
-            p.write_text(t.replace(cfg['anchor'], cfg['anchor'] + cfg['add'], 1), encoding='utf-8')
-            print(f'loc injected {p.name}')
+            add = ''.join(f',"{k}":"{v}"' for k, v in missing.items())
+            placed = False
+            for a in cfg['anchors']:
+                if a in t:
+                    t = t.replace(a, a + add, 1)
+                    p.write_text(t, encoding='utf-8')
+                    print(f'loc injected missing keys into {p.name}: {list(missing)}')
+                    placed = True
+                    break
+            if not placed:
+                # fallback: append after first mm_ key occurrence
+                for k in ('"mm_CallRecordings"', '"mm_Dashboard"', '"mm_Extensions"'):
+                    if k in t:
+                        idx = t.find(k)
+                        q1 = t.find('"', t.find(':', idx) + 1)
+                        q2 = t.find('"', q1 + 1)
+                        if q2 > 0:
+                            t = t[:q2+1] + add + t[q2+1:]
+                            p.write_text(t, encoding='utf-8')
+                            print(f'loc injected via fallback {k} into {p.name}')
+                            placed = True
+                            break
+            if not placed:
+                print(f'loc anchor missing {p.name}')
 print('localization keys ensured')
 PY
 

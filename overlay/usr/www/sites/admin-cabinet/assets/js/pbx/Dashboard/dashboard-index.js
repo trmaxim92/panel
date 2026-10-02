@@ -11,6 +11,7 @@ const dashApp = {
     initialize() {
         $('body').addClass('ss-dash-route');
         $('#page-header').hide();
+        dashApp.ensureLineLegend();
 
         $('#dash-range-tabs').on('click', 'button', (e) => {
             const $btn = $(e.currentTarget);
@@ -21,6 +22,26 @@ const dashApp = {
         });
 
         dashApp.load();
+    },
+
+    /** Legend for line chart — always keep Пропущенные next to in/out. */
+    ensureLineLegend() {
+        let $leg = $('#dash-line-legend');
+        if (!$leg.length) {
+            $leg = $('.ss-dash-legend').first();
+        }
+        if (!$leg.length) {
+            const $chart = $('#dash-line-chart');
+            if (!$chart.length) return;
+            $leg = $('<div class="ss-dash-legend" id="dash-line-legend"></div>');
+            $chart.before($leg);
+        }
+        $leg.attr('id', 'dash-line-legend');
+        $leg.html([
+            '<span><i class="ss-dot is-green"></i> Входящие</span>',
+            '<span><i class="ss-dot is-purple"></i> Исходящие</span>',
+            '<span><i class="ss-dot is-miss"></i> Пропущенные</span>',
+        ].join(''));
     },
 
     authHeaders() {

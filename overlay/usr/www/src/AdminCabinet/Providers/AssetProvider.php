@@ -1086,7 +1086,19 @@ class AssetProvider implements ServiceProviderInterface
 
             $this->footerCollectionJS
                 ->addJs('js/pbx/PbxAPI/cdr-api.js', true)
+                ->addJs('js/pbx/PbxAPI/storage-api.js', true)
                 ->addJs('js/pbx/CallRecordings/call-recordings-index.js', true);
+        }
+    }
+
+    /**
+     * Makes assets for SkyScale local Whisper settings
+     */
+    private function makeSkyscaleSttAssets(string $action): void
+    {
+        if ($action === 'index') {
+            $this->semanticCollectionCSS
+                ->addCss('css/SkyscaleStt/skyscale-stt.css', true);
         }
     }
 

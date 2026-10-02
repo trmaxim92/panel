@@ -26,6 +26,7 @@ use MikoPBX\AdminCabinet\Controllers\CallDetailRecordsController;
 use MikoPBX\AdminCabinet\Controllers\CallRecordingsController;
 use MikoPBX\AdminCabinet\Controllers\CallQueuesController;
 use MikoPBX\AdminCabinet\Controllers\DashboardController;
+use MikoPBX\AdminCabinet\Controllers\SkyscaleSttController;
 use MikoPBX\AdminCabinet\Controllers\ConferenceRoomsController;
 use MikoPBX\AdminCabinet\Controllers\ConsoleController;
 use MikoPBX\AdminCabinet\Controllers\CustomFilesController;
@@ -126,6 +127,13 @@ class Elements extends Injectable
                     CallRecordingsController::class => [
                         'caption' => 'mm_CallRecordings',
                         'iconclass' => 'file audio outline',
+                        'action' => 'index',
+                        'param' => '',
+                        'style' => '',
+                    ],
+                    SkyscaleSttController::class => [
+                        'caption' => 'mm_SkyscaleStt',
+                        'iconclass' => 'microphone',
                         'action' => 'index',
                         'param' => '',
                         'style' => '',

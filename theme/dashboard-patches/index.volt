@@ -60,10 +60,10 @@
                     <button type="button" data-range="30d">30 дней</button>
                 </div>
             </div>
-            <div class="ss-dash-legend">
+            <div class="ss-dash-legend" id="dash-line-legend">
                 <span><i class="ss-dot is-green"></i> Входящие</span>
                 <span><i class="ss-dot is-purple"></i> Исходящие</span>
-                <span><i class="ss-dot is-red"></i> Пропущенные</span>
+                <span><i class="ss-dot is-miss"></i> Пропущенные</span>
             </div>
             <div class="ss-dash-chart-wrap" id="dash-line-chart"></div>
         </div>

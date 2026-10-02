@@ -1,10 +1,11 @@
-/* global globalRootUrl, SemanticLocalization, ExtensionsAPI, moment, globalTranslate, CdrAPI, SecurityUtils, TokenManager */
+/* global globalRootUrl, SemanticLocalization, ExtensionsAPI, moment, globalTranslate, CdrAPI, SecurityUtils, TokenManager, StorageAPI, UserMessage */
 
 /**
  * Call Recordings — flat library of CDR legs with recordingfile.
  */
 const callRecordings = {
     STORAGE_KEY: 'ssCallRecordingsFilters',
+    RETENTION_OPTIONS: ['7', '14', '30', '90', '180', '360', '1080', ''],
     dataTable: null,
     $table: null,
     $dateRange: null,
@@ -13,7 +14,9 @@ const callRecordings = {
     $dstNumbers: null,
     $billsecMin: null,
     $pageLength: null,
+    $retention: null,
     activeAudio: null,
+    purging: false,
 
     initialize() {
         $('body').addClass('ss-rec-route');
@@ -24,6 +27,7 @@ const callRecordings = {
         callRecordings.$dstNumbers = $('#rec-dst-numbers');
         callRecordings.$billsecMin = $('#rec-billsec-min');
         callRecordings.$pageLength = $('#rec-page-length');
+        callRecordings.$retention = $('#rec-retention-period');
         callRecordings.$tableCard = $('#rec-table-card');
         callRecordings.$emptyState = $('#rec-empty-state');
         callRecordings.$pagerSlot = $('#rec-pager-slot');
@@ -34,6 +38,13 @@ const callRecordings = {
                     callRecordings[key].dropdown();
                 }
             });
+            if (callRecordings.$retention.length) {
+                callRecordings.$retention.dropdown({
+                    onChange() {
+                        callRecordings.updatePurgeHint();
+                    },
+                });
+            }
             if (callRecordings.$pageLength.length) {
                 callRecordings.$pageLength.dropdown({
                     onChange(pageLength) {
@@ -68,7 +79,178 @@ const callRecordings = {
             callRecordings.$dateRange.focus().trigger('click');
         });
 
+        $('#rec-retention-save').on('click', (e) => {
+            e.preventDefault();
+            callRecordings.saveRetention();
+        });
+        $('#rec-purge-btn').on('click', (e) => {
+            e.preventDefault();
+            callRecordings.purgeOldRecordings();
+        });
+
+        callRecordings.loadStorageUsage();
+        callRecordings.loadRetentionSetting();
         callRecordings.bootUi();
+    },
+
+    formatSizeMb(sizeInMb) {
+        const n = Number(sizeInMb) || 0;
+        if (n < 1024) return `${n.toFixed(n < 10 ? 1 : 0)} МБ`;
+        return `${(n / 1024).toFixed(n < 10240 ? 1 : 0)} ГБ`;
+    },
+
+    formatBytes(bytes) {
+        const b = Number(bytes) || 0;
+        if (b < 1024) return `${b} Б`;
+        if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} КБ`;
+        return callRecordings.formatSizeMb(b / (1024 * 1024));
+    },
+
+    loadStorageUsage() {
+        const $value = $('#rec-storage-value');
+        const $sub = $('#rec-storage-sub');
+        const $fill = $('#rec-storage-bar-fill');
+        if (typeof StorageAPI === 'undefined' || !StorageAPI.getUsage) {
+            $value.text('—');
+            $sub.text('API хранилища недоступен');
+            return;
+        }
+        StorageAPI.getUsage((response) => {
+            if (!response || !response.result || !response.data) {
+                $value.text('—');
+                $sub.text(response && response.data && response.data.pending
+                    ? 'Идёт подсчёт… обновите страницу через минуту'
+                    : 'Не удалось получить данные о диске');
+                return;
+            }
+            const data = response.data;
+            if (data.pending) {
+                $value.text('…');
+                $sub.text('Идёт подсчёт…');
+                setTimeout(() => callRecordings.loadStorageUsage(), 4000);
+                return;
+            }
+            const cat = (data.categories && data.categories.call_recordings) || {};
+            const recMb = Number(cat.size) || 0;
+            const usedMb = Number(data.used_space) || 0;
+            const totalMb = Number(data.total_size) || 0;
+            const pctOfDisk = totalMb > 0 ? Math.min(100, (recMb / totalMb) * 100) : 0;
+            const pctUsed = totalMb > 0 ? Math.min(100, (usedMb / totalMb) * 100) : 0;
+
+            $value.text(callRecordings.formatSizeMb(recMb));
+            $fill.css('width', `${Math.max(2, pctOfDisk).toFixed(1)}%`);
+            $sub.text(
+                `Диск занят на ${pctUsed.toFixed(0)}% · всего ${callRecordings.formatSizeMb(totalMb)}`
+                + (cat.percentage != null ? ` · записи ${Number(cat.percentage).toFixed(1)}%` : ''),
+            );
+        });
+    },
+
+    loadRetentionSetting() {
+        if (typeof StorageAPI === 'undefined' || !StorageAPI.get) return;
+        StorageAPI.get((response) => {
+            if (!response || !response.result || !response.data) return;
+            const period = response.data.PBXRecordSavePeriod;
+            const val = period === null || period === undefined ? '' : String(period);
+            if (callRecordings.RETENTION_OPTIONS.indexOf(val) !== -1) {
+                callRecordings.$retention.dropdown('set selected', val);
+            } else if (val && callRecordings.RETENTION_OPTIONS.indexOf(val) === -1) {
+                // keep closest or set raw
+                callRecordings.$retention.dropdown('set selected', '90');
+            }
+            callRecordings.updatePurgeHint();
+        });
+    },
+
+    updatePurgeHint() {
+        const days = callRecordings.$retention.dropdown('get value');
+        const $hint = $('#rec-storage-hint');
+        const $purge = $('#rec-purge-btn');
+        if (!days) {
+            $hint.text('Без ограничения: автоочистка отключена. Для ручной очистки выберите срок.');
+            $purge.prop('disabled', true).addClass('disabled');
+        } else {
+            $hint.text(`«Очистить старые» удалит файлы записей старше ${days} дн. Срок хранения синхронизируется с разделом «Хранилище».`);
+            $purge.prop('disabled', false).removeClass('disabled');
+        }
+    },
+
+    saveRetention() {
+        const days = callRecordings.$retention.dropdown('get value');
+        if (typeof StorageAPI === 'undefined' || !StorageAPI.patch) {
+            callRecordings.notify(false, 'API хранилища недоступен');
+            return;
+        }
+        const $btn = $('#rec-retention-save').addClass('loading disabled');
+        StorageAPI.patch({ PBXRecordSavePeriod: days }, (response) => {
+            $btn.removeClass('loading disabled');
+            if (response && response.result) {
+                callRecordings.notify(true, 'Срок хранения сохранён');
+                callRecordings.updatePurgeHint();
+            } else {
+                callRecordings.notify(false, (response && response.messages && response.messages.error)
+                    ? response.messages.error.join(', ')
+                    : 'Не удалось сохранить срок');
+            }
+        });
+    },
+
+    purgeOldRecordings() {
+        const days = callRecordings.$retention.dropdown('get value');
+        if (!days) {
+            callRecordings.notify(false, 'Выберите срок очистки');
+            return;
+        }
+        if (callRecordings.purging) return;
+        const ok = window.confirm(
+            `Удалить все файлы записей старше ${days} дней?\nЭто действие нельзя отменить.`,
+        );
+        if (!ok) return;
+
+        callRecordings.purging = true;
+        const $btn = $('#rec-purge-btn').addClass('loading disabled');
+        $.ajax({
+            url: `${globalRootUrl}call-recordings/purge`,
+            method: 'POST',
+            dataType: 'json',
+            data: { days },
+            success(res) {
+                callRecordings.purging = false;
+                $btn.removeClass('loading disabled');
+                if (res && res.success) {
+                    const freed = res.data && res.data.freedBytes
+                        ? ` · освобождено ${callRecordings.formatBytes(res.data.freedBytes)}`
+                        : '';
+                    callRecordings.notify(true, (res.message || 'Готово') + freed);
+                    callRecordings.loadStorageUsage();
+                    if (callRecordings.dataTable) {
+                        callRecordings.dataTable.ajax.reload();
+                    }
+                } else {
+                    callRecordings.notify(false, (res && res.message) || 'Ошибка очистки');
+                }
+                callRecordings.updatePurgeHint();
+            },
+            error() {
+                callRecordings.purging = false;
+                $btn.removeClass('loading disabled');
+                callRecordings.notify(false, 'Ошибка запроса очистки');
+                callRecordings.updatePurgeHint();
+            },
+        });
+    },
+
+    notify(ok, text) {
+        if (typeof UserMessage !== 'undefined' && UserMessage.showMultiString) {
+            UserMessage.showMultiString(text, ok ? '' : 'Ошибка');
+            return;
+        }
+        if (ok) {
+            console.info('[REC]', text);
+        } else {
+            console.error('[REC]', text);
+        }
+        window.alert(text);
     },
 
     bootUi() {
@@ -194,6 +376,7 @@ const callRecordings = {
                 { data: 1 },
                 { data: 2 },
                 { data: 3, className: 'ss-rec-duration' },
+                { data: null, orderable: false, className: 'center aligned ss-rec-tx-col' },
                 { data: null, orderable: false, className: 'center aligned' },
             ],
             columnDefs: [{ defaultContent: '—', targets: '_all' }],
@@ -263,12 +446,17 @@ const callRecordings = {
                     .attr('data-cdr-name', data.dst_name || '');
                 $('td', row).eq(4).html(SecurityUtils.escapeHtml(data[3]));
 
+                const tx = data.linkedid
+                    ? `<span class="ss-rec-tx" data-linkedid="${SecurityUtils.escapeHtml(data.linkedid)}" title="Проверяем расшифровку…">—</span>`
+                    : '—';
+                $('td', row).eq(5).html(tx);
+
                 const dl = data.download_url
                     ? `<a class="ss-rec-download" href="${SecurityUtils.escapeHtml(data.download_url)}" download title="Скачать">
                          <i class="download icon"></i>
                        </a>`
                     : '';
-                $('td', row).eq(5).html(dl);
+                $('td', row).eq(6).html(dl);
             },
             drawCallback() {
                 if (typeof ExtensionsAPI !== 'undefined' && ExtensionsAPI.updatePhonesRepresent) {
@@ -278,11 +466,36 @@ const callRecordings = {
                 const api = callRecordings.$table.DataTable();
                 const empty = !api || api.rows({ page: 'current' }).data().length === 0;
                 callRecordings.setEmpty(empty);
+                callRecordings.refreshTranscriptBadges();
             },
         });
 
         callRecordings.dataTable = callRecordings.$table.DataTable();
         callRecordings.relocatePager();
+
+        callRecordings.$table.off('click.recTx').on('click.recTx', '.ss-rec-tx.is-ready', function onTx(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const $el = $(this);
+            const publicId = String($el.attr('data-public-id') || '').trim();
+            const linkedid = String($el.attr('data-linkedid') || '').trim();
+            if (!publicId) return;
+            const row = callRecordings.dataTable ? callRecordings.dataTable.row($el.closest('tr')).data() : null;
+            const call = {
+                date: row ? String(row[0] || '') : '',
+                source: row ? String(row[1] || '') : '',
+                sourceName: row ? String(row.src_name || '') : '',
+                destination: row ? String(row[2] || '') : '',
+                destinationName: row ? String(row.dst_name || '') : '',
+                duration: row ? String(row[3] || '') : '',
+            };
+            const cdr = window.ModuleCloudSpeechToTextCdr;
+            if (cdr && typeof cdr.openTranscriptByPublicId === 'function') {
+                if (cdr.openTranscriptByPublicId(linkedid || publicId, publicId, call)) {
+                    return;
+                }
+            }
+        });
 
         // Play / pause via event delegation
         callRecordings.$table.off('click.recPlay').on('click.recPlay', '.ss-rec-play', function onPlay(e) {
@@ -341,12 +554,58 @@ const callRecordings = {
                     dst_name: rec.dst_name || group.dst_name || '',
                     playback_url: rec.playback_url || '',
                     download_url: rec.download_url || '',
+                    linkedid: group.linkedid || rec.linkedid || '',
                     id: rec.id || '',
                     DT_RowId: rec.id || group.linkedid || '',
                 });
             });
         });
         return rows;
+    },
+
+    refreshTranscriptBadges() {
+        const ids = [];
+        callRecordings.$table.find('.ss-rec-tx[data-linkedid]').each(function collect() {
+            const id = String($(this).attr('data-linkedid') || '').trim();
+            if (id && ids.indexOf(id) === -1) ids.push(id);
+        });
+        if (!ids.length) return;
+
+        const lookupUrl = '/pbxcore/api/v3/module-cloud-speech-to-text/cdr-transcript-lookups';
+        for (let offset = 0; offset < ids.length; offset += 100) {
+            const batch = ids.slice(offset, offset + 100);
+            $.ajax({
+                url: lookupUrl,
+                method: 'POST',
+                contentType: 'application/json; charset=utf-8',
+                dataType: 'json',
+                data: JSON.stringify({ call_ids: batch }),
+                beforeSend(xhr) {
+                    if (typeof TokenManager !== 'undefined' && TokenManager.accessToken) {
+                        xhr.setRequestHeader('Authorization', `Bearer ${TokenManager.accessToken}`);
+                    }
+                },
+            }).done((response) => {
+                const data = (response && response.data) || response || {};
+                const map = (data && data.transcript_map) || {};
+                batch.forEach((callId) => {
+                    const publicId = map[callId] ? String(map[callId]) : '';
+                    const $el = callRecordings.$table.find('.ss-rec-tx').filter(function matchCall() {
+                        return String($(this).attr('data-linkedid') || '') === callId;
+                    });
+                    if (!$el.length) return;
+                    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(publicId)) {
+                        $el
+                            .addClass('is-ready')
+                            .attr('data-public-id', publicId)
+                            .attr('title', 'Открыть расшифровку')
+                            .html('<i class="file alternate outline icon"></i>');
+                    } else {
+                        $el.removeClass('is-ready').removeAttr('data-public-id').attr('title', 'Нет расшифровки').text('—');
+                    }
+                });
+            });
+        }
     },
 
     buildApiParams() {

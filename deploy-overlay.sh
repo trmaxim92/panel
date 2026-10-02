@@ -20,7 +20,7 @@ docker exec "$CONTAINER" sh -c 'mkdir -p /offload/rootfs/usr/www/sites/admin-cab
 
 echo "== apply theme + CDR/Dashboard/Recordings patches =="
 # Fresh /tmp patch dirs — avoid nested docker cp leftovers
-docker exec "$CONTAINER" sh -c 'rm -rf /tmp/cdr-patches /tmp/layout-patches /tmp/extensions-patches /tmp/dashboard-patches /tmp/brand /tmp/apply-in-container.sh /tmp/skyscale-theme.css /tmp/clear-localisation-cache.sh'
+docker exec "$CONTAINER" sh -c 'rm -rf /tmp/cdr-patches /tmp/layout-patches /tmp/extensions-patches /tmp/dashboard-patches /tmp/monitor-patches /tmp/stt-patches /tmp/brand /tmp/apply-in-container.sh /tmp/skyscale-theme.css /tmp/clear-localisation-cache.sh'
 
 docker cp "$THEME/skyscale-theme.css" "$CONTAINER:/tmp/skyscale-theme.css"
 docker cp "$THEME/apply-in-container.sh" "$CONTAINER:/tmp/apply-in-container.sh"
@@ -29,6 +29,12 @@ docker cp "$THEME/cdr-patches" "$CONTAINER:/tmp/cdr-patches"
 docker cp "$THEME/layout-patches" "$CONTAINER:/tmp/layout-patches"
 docker cp "$THEME/extensions-patches" "$CONTAINER:/tmp/extensions-patches"
 docker cp "$THEME/dashboard-patches" "$CONTAINER:/tmp/dashboard-patches"
+if [ -d "$THEME/monitor-patches" ]; then
+  docker cp "$THEME/monitor-patches" "$CONTAINER:/tmp/monitor-patches"
+fi
+if [ -d "$THEME/stt-patches" ]; then
+  docker cp "$THEME/stt-patches" "$CONTAINER:/tmp/stt-patches"
+fi
 if [ -d "$THEME/brand" ]; then
   docker exec "$CONTAINER" mkdir -p /tmp/brand
   tar -C "$THEME/brand" -cf - . | docker exec -i "$CONTAINER" tar -C /tmp/brand -xf -

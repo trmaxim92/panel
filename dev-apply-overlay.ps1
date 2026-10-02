@@ -21,6 +21,12 @@ docker cp ".\theme\cdr-patches" "${name}:/tmp/cdr-patches"
 docker cp ".\theme\layout-patches" "${name}:/tmp/layout-patches"
 docker cp ".\theme\extensions-patches" "${name}:/tmp/extensions-patches"
 docker cp ".\theme\dashboard-patches" "${name}:/tmp/dashboard-patches"
+if (Test-Path ".\theme\monitor-patches") {
+  docker cp ".\theme\monitor-patches" "${name}:/tmp/monitor-patches"
+}
+if (Test-Path ".\theme\stt-patches") {
+  docker cp ".\theme\stt-patches" "${name}:/tmp/stt-patches"
+}
 docker cp ".\theme\apply-in-container.sh" "${name}:/tmp/apply-in-container.sh"
 if (Test-Path ".\theme\clear-localisation-cache.sh") {
   docker cp ".\theme\clear-localisation-cache.sh" "${name}:/tmp/clear-localisation-cache.sh"

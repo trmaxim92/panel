@@ -68,6 +68,83 @@ body:has(.ss-rec-page) #page-header.ui.header,
   margin-left: 4px;
 }
 
+/* Storage / cleanup panel */
+.ss-rec-storage {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(280px, 1.2fr);
+  gap: 18px 24px;
+  align-items: end;
+  background: #fff;
+  border: 1px solid #E6E8EF;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  padding: 18px 20px;
+  margin-bottom: 16px;
+}
+@media (max-width: 900px) {
+  .ss-rec-storage { grid-template-columns: 1fr; }
+}
+.ss-rec-storage-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #8B90A0;
+  margin-bottom: 4px;
+}
+.ss-rec-storage-value {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #1A1D27;
+  line-height: 1.2;
+}
+.ss-rec-storage-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: #EEF1F5;
+  overflow: hidden;
+  margin: 10px 0 6px;
+}
+.ss-rec-storage-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #2F6FED, #5B8CFF);
+  width: 0;
+  transition: width .35s ease;
+}
+.ss-rec-storage-sub {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #8B90A0;
+}
+.ss-rec-storage-actions .ss-field label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: #8B90A0;
+  margin-bottom: 6px;
+}
+.ss-rec-storage-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.ss-rec-storage-btns .ui.button {
+  border-radius: 10px !important;
+  font-weight: 700 !important;
+}
+.ss-rec-storage-hint {
+  margin-top: 10px;
+  font-size: 12px;
+  color: #8B90A0;
+  line-height: 1.4;
+}
+#rec-retention-period.ui.dropdown {
+  min-height: 42px !important;
+  border-radius: 10px !important;
+  border: 1px solid #D8DBE6 !important;
+}
+
 /* Filters panel — reuse CDR panel language via #rec-filters-panel.ss-cdr-panel */
 #rec-filters-panel.ss-cdr-panel {
   background: #fff;
@@ -371,6 +448,29 @@ body:has(.ss-rec-page) #page-header.ui.header,
 #rec-table .ss-rec-download .icon {
   margin: 0 !important;
   font-size: 16px !important;
+}
+
+#rec-table .ss-rec-tx {
+  color: #B0B4C0;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+}
+#rec-table .ss-rec-tx.is-ready {
+  color: #2F6FED;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #EEF4FF;
+}
+#rec-table .ss-rec-tx.is-ready:hover {
+  background: #DCE8FF;
+}
+#rec-table .ss-rec-tx .icon {
+  margin: 0 !important;
 }
 
 #rec-table .ss-rec-duration {
