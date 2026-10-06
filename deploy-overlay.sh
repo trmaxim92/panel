@@ -67,6 +67,16 @@ docker exec "$CONTAINER" sh -c 'php -r "if(function_exists(\"opcache_reset\")) o
 docker exec "$CONTAINER" sh -c 'rm -rf /storage/usbdisk1/mikopbx/tmp/volt /storage/usbdisk1/mikopbx/tmp/volt_cache 2>/dev/null || true'
 docker exec "$CONTAINER" sh -c 'find /usr/www/sites/admin-cabinet/assets/js/cache -type f \( -name "*-footer.js" -o -name "*-header.js" \) -delete 2>/dev/null || true'
 
+# Ensure daily disk cleanup cron on host (Asterisk log rotations)
+if [ -f "$THEME/ops/install-cleanup-cron.sh" ]; then
+  echo "== install disk cleanup cron =="
+  bash "$THEME/ops/install-cleanup-cron.sh" || true
+fi
+# Re-apply logger limits + reload asterisk logger after overlay copy
+if [ -f "$THEME/ops/tune-asterisk-logger.sh" ]; then
+  bash "$THEME/ops/tune-asterisk-logger.sh" || true
+fi
+
 echo "== restart WorkerApiCommands (CDR API PHP) =="
 if [ -f "$ROOT/theme/restart-api-workers.sh" ]; then
   docker cp "$ROOT/theme/restart-api-workers.sh" "$CONTAINER:/tmp/_fix_workers2.sh"
