@@ -178,3 +178,31 @@
         </div>
     </div>
 </div>
+
+<div id="ss-rec-player" class="ss-rec-player" hidden aria-hidden="true">
+    <div class="ss-rec-player__inner">
+        <button type="button" class="ss-rec-player__close" id="ss-rec-player-close" aria-label="Закрыть" title="Закрыть">
+            <i class="close icon"></i>
+        </button>
+        <div class="ss-rec-player__meta">
+            <strong id="ss-rec-player-title">—</strong>
+            <span id="ss-rec-player-sub">—</span>
+        </div>
+        <div class="ss-rec-player__controls">
+            <button type="button" class="ss-rec-player__btn" id="ss-rec-player-back" title="Назад 10 сек" aria-label="Назад 10 сек">
+                <i class="step backward icon"></i>
+            </button>
+            <button type="button" class="ss-rec-player__btn ss-rec-player__btn--main" id="ss-rec-player-toggle" title="Пауза" aria-label="Пауза">
+                <i class="pause icon"></i>
+            </button>
+            <button type="button" class="ss-rec-player__btn" id="ss-rec-player-fwd" title="Вперёд 10 сек" aria-label="Вперёд 10 сек">
+                <i class="step forward icon"></i>
+            </button>
+        </div>
+        <div class="ss-rec-player__timeline">
+            <span class="ss-rec-player__time" id="ss-rec-player-cur">0:00</span>
+            <input type="range" class="ss-rec-player__seek" id="ss-rec-player-seek" min="0" max="1000" value="0" step="1" aria-label="Перемотка">
+            <span class="ss-rec-player__time" id="ss-rec-player-dur">0:00</span>
+        </div>
+    </div>
+</div>

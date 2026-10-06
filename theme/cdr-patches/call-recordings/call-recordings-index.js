@@ -16,6 +16,8 @@ const callRecordings = {
     $pageLength: null,
     $retention: null,
     activeAudio: null,
+    activePlayBtn: null,
+    seeking: false,
     purging: false,
 
     initialize() {
@@ -31,6 +33,7 @@ const callRecordings = {
         callRecordings.$tableCard = $('#rec-table-card');
         callRecordings.$emptyState = $('#rec-empty-state');
         callRecordings.$pagerSlot = $('#rec-pager-slot');
+        callRecordings.bindPlayerBar();
 
         try {
             ['$callerType', '$billsecMin', '$dstNumbers'].forEach((key) => {
@@ -428,9 +431,9 @@ const callRecordings = {
             },
             createdRow(row, data) {
                 const playHtml = data.playback_url
-                    ? `<button type="button" class="ss-rec-play" data-play-url="${SecurityUtils.escapeHtml(data.playback_url)}" title="Слушать">
+                    ? `<button type="button" class="ss-rec-play" data-play-url="${SecurityUtils.escapeHtml(data.playback_url)}" data-rec-date="${SecurityUtils.escapeHtml(data[0] || '')}" data-rec-src="${SecurityUtils.escapeHtml(data[1] || '')}" data-rec-dst="${SecurityUtils.escapeHtml(data[2] || '')}" data-rec-duration="${SecurityUtils.escapeHtml(data[3] || '')}" title="Слушать">
                          <i class="play icon"></i>
-                         <audio class="ss-rec-audio" preload="none" src="${SecurityUtils.escapeHtml(data.playback_url)}"></audio>
+                         <audio class="ss-rec-audio" preload="metadata" src="${SecurityUtils.escapeHtml(data.playback_url)}"></audio>
                        </button>`
                     : '';
                 $('td', row).eq(0).html(playHtml);
@@ -506,29 +509,188 @@ const callRecordings = {
             if (!audio) return;
 
             if (callRecordings.activeAudio && callRecordings.activeAudio !== audio) {
-                callRecordings.activeAudio.pause();
-                callRecordings.activeAudio.currentTime = 0;
-                $(callRecordings.activeAudio).closest('.ss-rec-play')
-                    .removeClass('is-playing')
-                    .find('.icon').removeClass('pause').addClass('play');
+                callRecordings.stopActiveAudio(false);
             }
 
             if (audio.paused) {
-                // Attach bearer for media if same-origin cookie auth insufficient:
-                // playback_url usually includes token query already.
-                audio.play().catch((err) => console.warn('[REC] play failed', err));
-                $btn.addClass('is-playing').find('.icon').removeClass('play').addClass('pause');
-                callRecordings.activeAudio = audio;
-                audio.onended = () => {
-                    $btn.removeClass('is-playing').find('.icon').removeClass('pause').addClass('play');
-                    callRecordings.activeAudio = null;
-                };
+                callRecordings.startPlayback($btn, audio);
             } else {
-                audio.pause();
-                $btn.removeClass('is-playing').find('.icon').removeClass('pause').addClass('play');
-                callRecordings.activeAudio = null;
+                callRecordings.pausePlayback();
             }
         });
+    },
+
+    bindPlayerBar() {
+        callRecordings.$player = $('#ss-rec-player');
+        callRecordings.$playerSeek = $('#ss-rec-player-seek');
+        callRecordings.$playerCur = $('#ss-rec-player-cur');
+        callRecordings.$playerDur = $('#ss-rec-player-dur');
+        callRecordings.$playerToggle = $('#ss-rec-player-toggle');
+        if (!callRecordings.$player.length) return;
+
+        $('#ss-rec-player-close').off('click.recPlayer').on('click.recPlayer', (e) => {
+            e.preventDefault();
+            callRecordings.closePlayerBar();
+        });
+        $('#ss-rec-player-back').off('click.recPlayer').on('click.recPlayer', (e) => {
+            e.preventDefault();
+            callRecordings.seekBy(-10);
+        });
+        $('#ss-rec-player-fwd').off('click.recPlayer').on('click.recPlayer', (e) => {
+            e.preventDefault();
+            callRecordings.seekBy(10);
+        });
+        callRecordings.$playerToggle.off('click.recPlayer').on('click.recPlayer', (e) => {
+            e.preventDefault();
+            const audio = callRecordings.activeAudio;
+            if (!audio) return;
+            if (audio.paused) {
+                audio.play().catch((err) => console.warn('[REC] play failed', err));
+                callRecordings.setPlayingUi(true);
+            } else {
+                callRecordings.pausePlayback();
+            }
+        });
+
+        callRecordings.$playerSeek.off('.recPlayer');
+        callRecordings.$playerSeek.on('pointerdown.recPlayer mousedown.recPlayer touchstart.recPlayer', () => {
+            callRecordings.seeking = true;
+        });
+        callRecordings.$playerSeek.on('input.recPlayer', function onSeekInput() {
+            const audio = callRecordings.activeAudio;
+            if (!audio || !Number.isFinite(audio.duration) || audio.duration <= 0) return;
+            const ratio = Number(this.value) / 1000;
+            callRecordings.$playerCur.text(callRecordings.formatTime(audio.duration * ratio));
+        });
+        callRecordings.$playerSeek.on('change.recPlayer', function onSeekChange() {
+            const audio = callRecordings.activeAudio;
+            if (audio && Number.isFinite(audio.duration) && audio.duration > 0) {
+                audio.currentTime = (Number(this.value) / 1000) * audio.duration;
+            }
+            callRecordings.seeking = false;
+            callRecordings.syncPlayerProgress();
+        });
+        $(document).off('pointerup.recPlayer mouseup.recPlayer touchend.recPlayer')
+            .on('pointerup.recPlayer mouseup.recPlayer touchend.recPlayer', () => {
+                if (callRecordings.seeking) {
+                    callRecordings.seeking = false;
+                    callRecordings.syncPlayerProgress();
+                }
+            });
+    },
+
+    formatTime(sec) {
+        const n = Math.max(0, Math.floor(Number(sec) || 0));
+        const m = Math.floor(n / 60);
+        const s = n % 60;
+        return `${m}:${String(s).padStart(2, '0')}`;
+    },
+
+    showPlayerBar($btn) {
+        if (!callRecordings.$player || !callRecordings.$player.length) return;
+        const date = String($btn.attr('data-rec-date') || 'Запись');
+        const src = String($btn.attr('data-rec-src') || '—');
+        const dst = String($btn.attr('data-rec-dst') || '—');
+        $('#ss-rec-player-title').text(`${src} → ${dst}`);
+        $('#ss-rec-player-sub').text(date);
+        callRecordings.$player.removeAttr('hidden').attr('aria-hidden', 'false').addClass('is-open');
+        $('body').addClass('ss-rec-player-open');
+        callRecordings.syncPlayerProgress();
+    },
+
+    closePlayerBar() {
+        callRecordings.stopActiveAudio(true);
+        if (callRecordings.$player && callRecordings.$player.length) {
+            callRecordings.$player.removeClass('is-open').attr('hidden', true).attr('aria-hidden', 'true');
+        }
+        $('body').removeClass('ss-rec-player-open');
+        callRecordings.seeking = false;
+    },
+
+    setPlayingUi(playing) {
+        const $btn = callRecordings.activePlayBtn;
+        if ($btn && $btn.length) {
+            if (playing) {
+                $btn.addClass('is-playing').find('.icon').removeClass('play').addClass('pause');
+            } else {
+                $btn.removeClass('is-playing').find('.icon').removeClass('pause').addClass('play');
+            }
+        }
+        if (callRecordings.$playerToggle && callRecordings.$playerToggle.length) {
+            callRecordings.$playerToggle
+                .attr('title', playing ? 'Пауза' : 'Слушать')
+                .attr('aria-label', playing ? 'Пауза' : 'Слушать')
+                .find('.icon')
+                .removeClass(playing ? 'play' : 'pause')
+                .addClass(playing ? 'pause' : 'play');
+        }
+    },
+
+    bindActiveAudio(audio) {
+        if (!audio) return;
+        audio.ontimeupdate = () => callRecordings.syncPlayerProgress();
+        audio.onloadedmetadata = () => callRecordings.syncPlayerProgress();
+        audio.onended = () => {
+            callRecordings.setPlayingUi(false);
+            if (callRecordings.activeAudio) {
+                callRecordings.activeAudio.currentTime = 0;
+            }
+            callRecordings.syncPlayerProgress();
+        };
+    },
+
+    syncPlayerProgress() {
+        const audio = callRecordings.activeAudio;
+        if (!audio || !callRecordings.$playerSeek || !callRecordings.$playerSeek.length) return;
+        const dur = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0;
+        const cur = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+        callRecordings.$playerDur.text(callRecordings.formatTime(dur));
+        callRecordings.$playerCur.text(callRecordings.formatTime(cur));
+        if (!callRecordings.seeking) {
+            const ratio = dur > 0 ? Math.min(1, Math.max(0, cur / dur)) : 0;
+            callRecordings.$playerSeek.val(String(Math.round(ratio * 1000)));
+        }
+    },
+
+    seekBy(deltaSec) {
+        const audio = callRecordings.activeAudio;
+        if (!audio) return;
+        const dur = Number.isFinite(audio.duration) ? audio.duration : 0;
+        let next = (Number(audio.currentTime) || 0) + deltaSec;
+        if (dur > 0) next = Math.min(dur, Math.max(0, next));
+        else next = Math.max(0, next);
+        audio.currentTime = next;
+        callRecordings.syncPlayerProgress();
+    },
+
+    startPlayback($btn, audio) {
+        callRecordings.activeAudio = audio;
+        callRecordings.activePlayBtn = $btn;
+        callRecordings.bindActiveAudio(audio);
+        callRecordings.showPlayerBar($btn);
+        audio.play().catch((err) => console.warn('[REC] play failed', err));
+        callRecordings.setPlayingUi(true);
+    },
+
+    pausePlayback() {
+        if (callRecordings.activeAudio) {
+            callRecordings.activeAudio.pause();
+        }
+        callRecordings.setPlayingUi(false);
+    },
+
+    stopActiveAudio(resetTime) {
+        const audio = callRecordings.activeAudio;
+        if (audio) {
+            audio.pause();
+            if (resetTime) audio.currentTime = 0;
+            audio.ontimeupdate = null;
+            audio.onloadedmetadata = null;
+            audio.onended = null;
+        }
+        callRecordings.setPlayingUi(false);
+        callRecordings.activeAudio = null;
+        callRecordings.activePlayBtn = null;
     },
 
     flattenRecordings(groups) {
