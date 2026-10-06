@@ -7,11 +7,15 @@
 const dashApp = {
     range: 'today',
     cache: { today: null, yesterday: null, week: null, month: null },
+    activeAudio: null,
+    activePlayBtn: null,
+    seeking: false,
 
     initialize() {
         $('body').addClass('ss-dash-route');
         $('#page-header').hide();
         dashApp.ensureLineLegend();
+        dashApp.bindPlayerBar();
 
         $('#dash-range-tabs').on('click', 'button', (e) => {
             const $btn = $(e.currentTarget);
@@ -19,6 +23,22 @@ const dashApp = {
             $btn.addClass('is-active');
             dashApp.range = $btn.data('range') || 'today';
             dashApp.renderDynamics();
+        });
+
+        $('#dash-recent-body').off('click.dashPlay').on('click.dashPlay', '.ss-dash-play', function onPlay(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const $btn = $(this);
+            const audio = $btn.find('audio').get(0);
+            if (!audio) return;
+            if (dashApp.activeAudio && dashApp.activeAudio !== audio) {
+                dashApp.stopActiveAudio(false);
+            }
+            if (audio.paused) {
+                dashApp.startPlayback($btn, audio);
+            } else {
+                dashApp.pausePlayback();
+            }
         });
 
         dashApp.load();
@@ -368,7 +388,7 @@ const dashApp = {
     renderRecent() {
         const rows = (dashApp.cache.today || []).slice(0, 8);
         if (!rows.length) {
-            $('#dash-recent-body').html('<tr><td colspan="6" class="ss-dash-loading">Нет звонков за сегодня</td></tr>');
+            $('#dash-recent-body').html('<tr><td colspan="7" class="ss-dash-loading">Нет звонков за сегодня</td></tr>');
             return;
         }
         const html = rows.map((g) => {
@@ -377,8 +397,19 @@ const dashApp = {
             const num = c.incoming ? c.src : c.dst;
             const ok = !c.missed;
             const ini = dashApp.initials(c.incoming ? c.srcName : c.dstName, num).toUpperCase();
+            const dateStr = moment(g.start).format('DD.MM.YYYY HH:mm');
+            const src = String(g.src_num || '');
+            const dst = String(g.dst_num || g.did || '');
+            const rec = dashApp.recordingOf(g);
+            const playHtml = rec && rec.playback_url
+                ? `<button type="button" class="ss-dash-play" data-rec-date="${dashApp.esc(dateStr)}" data-rec-src="${dashApp.esc(src)}" data-rec-dst="${dashApp.esc(dst)}" title="Слушать">
+                     <i class="play icon"></i>
+                     <audio preload="metadata" src="${dashApp.esc(rec.playback_url)}"></audio>
+                   </button>`
+                : '<span class="ss-dash-play-empty">—</span>';
             return `<tr>
-              <td>${moment(g.start).format('DD.MM.YYYY HH:mm')}</td>
+              <td class="ss-dash-play-cell">${playHtml}</td>
+              <td>${dateStr}</td>
               <td><span class="ss-dash-client"><span class="ss-dash-ava" style="background:${dashApp.colorFor(name)}">${ini || '—'}</span>${dashApp.esc(name || '—')}</span></td>
               <td>${dashApp.esc(num || '—')}</td>
               <td><span class="ss-dash-type ${c.incoming ? 'is-in' : 'is-out'}"><i class="${c.incoming ? 'sign in' : 'sign out'} icon"></i>${c.incoming ? 'Вход.' : 'Исх.'}</span></td>
@@ -387,6 +418,192 @@ const dashApp = {
             </tr>`;
         }).join('');
         $('#dash-recent-body').html(html);
+    },
+
+    recordingOf(group) {
+        const legs = Array.isArray(group && group.records) ? group.records : [];
+        for (let i = 0; i < legs.length; i++) {
+            const r = legs[i] || {};
+            if (r.playback_url) return r;
+            if (r.recordingfile && String(r.recordingfile).length > 0 && r.playback_url !== '') {
+                return r;
+            }
+        }
+        if (group && group.playback_url) return group;
+        return null;
+    },
+
+    bindPlayerBar() {
+        dashApp.$player = $('#ss-rec-player');
+        dashApp.$playerSeek = $('#ss-rec-player-seek');
+        dashApp.$playerCur = $('#ss-rec-player-cur');
+        dashApp.$playerDur = $('#ss-rec-player-dur');
+        dashApp.$playerToggle = $('#ss-rec-player-toggle');
+        if (!dashApp.$player.length) return;
+
+        $('#ss-rec-player-close').off('click.dashPlayer').on('click.dashPlayer', (e) => {
+            e.preventDefault();
+            dashApp.closePlayerBar();
+        });
+        $('#ss-rec-player-back').off('click.dashPlayer').on('click.dashPlayer', (e) => {
+            e.preventDefault();
+            dashApp.seekBy(-10);
+        });
+        $('#ss-rec-player-fwd').off('click.dashPlayer').on('click.dashPlayer', (e) => {
+            e.preventDefault();
+            dashApp.seekBy(10);
+        });
+        dashApp.$playerToggle.off('click.dashPlayer').on('click.dashPlayer', (e) => {
+            e.preventDefault();
+            const audio = dashApp.activeAudio;
+            if (!audio) return;
+            if (audio.paused) {
+                audio.play().catch((err) => console.warn('[DASH] play failed', err));
+                dashApp.setPlayingUi(true);
+            } else {
+                dashApp.pausePlayback();
+            }
+        });
+
+        dashApp.$playerSeek.off('.dashPlayer');
+        dashApp.$playerSeek.on('pointerdown.dashPlayer mousedown.dashPlayer touchstart.dashPlayer', () => {
+            dashApp.seeking = true;
+        });
+        dashApp.$playerSeek.on('input.dashPlayer', function onSeekInput() {
+            const audio = dashApp.activeAudio;
+            if (!audio || !Number.isFinite(audio.duration) || audio.duration <= 0) return;
+            const ratio = Number(this.value) / 1000;
+            dashApp.$playerCur.text(dashApp.formatTime(audio.duration * ratio));
+        });
+        dashApp.$playerSeek.on('change.dashPlayer', function onSeekChange() {
+            const audio = dashApp.activeAudio;
+            if (audio && Number.isFinite(audio.duration) && audio.duration > 0) {
+                audio.currentTime = (Number(this.value) / 1000) * audio.duration;
+            }
+            dashApp.seeking = false;
+            dashApp.syncPlayerProgress();
+        });
+        $(document).off('pointerup.dashPlayer mouseup.dashPlayer touchend.dashPlayer')
+            .on('pointerup.dashPlayer mouseup.dashPlayer touchend.dashPlayer', () => {
+                if (dashApp.seeking) {
+                    dashApp.seeking = false;
+                    dashApp.syncPlayerProgress();
+                }
+            });
+    },
+
+    formatTime(sec) {
+        const n = Math.max(0, Math.floor(Number(sec) || 0));
+        const m = Math.floor(n / 60);
+        const s = n % 60;
+        return `${m}:${String(s).padStart(2, '0')}`;
+    },
+
+    showPlayerBar($btn) {
+        if (!dashApp.$player || !dashApp.$player.length) return;
+        const date = String($btn.attr('data-rec-date') || 'Запись');
+        const src = String($btn.attr('data-rec-src') || '—');
+        const dst = String($btn.attr('data-rec-dst') || '—');
+        $('#ss-rec-player-title').text(`${src} → ${dst}`);
+        $('#ss-rec-player-sub').text(date);
+        dashApp.$player.removeAttr('hidden').attr('aria-hidden', 'false').addClass('is-open');
+        $('body').addClass('ss-rec-player-open');
+        dashApp.syncPlayerProgress();
+    },
+
+    closePlayerBar() {
+        dashApp.stopActiveAudio(true);
+        if (dashApp.$player && dashApp.$player.length) {
+            dashApp.$player.removeClass('is-open').attr('hidden', true).attr('aria-hidden', 'true');
+        }
+        $('body').removeClass('ss-rec-player-open');
+        dashApp.seeking = false;
+    },
+
+    setPlayingUi(playing) {
+        const $btn = dashApp.activePlayBtn;
+        if ($btn && $btn.length) {
+            if (playing) {
+                $btn.addClass('is-playing').find('.icon').removeClass('play').addClass('pause');
+            } else {
+                $btn.removeClass('is-playing').find('.icon').removeClass('pause').addClass('play');
+            }
+        }
+        if (dashApp.$playerToggle && dashApp.$playerToggle.length) {
+            dashApp.$playerToggle
+                .attr('title', playing ? 'Пауза' : 'Слушать')
+                .attr('aria-label', playing ? 'Пауза' : 'Слушать')
+                .find('.icon')
+                .removeClass(playing ? 'play' : 'pause')
+                .addClass(playing ? 'pause' : 'play');
+        }
+    },
+
+    bindActiveAudio(audio) {
+        if (!audio) return;
+        audio.ontimeupdate = () => dashApp.syncPlayerProgress();
+        audio.onloadedmetadata = () => dashApp.syncPlayerProgress();
+        audio.onended = () => {
+            dashApp.setPlayingUi(false);
+            if (dashApp.activeAudio) {
+                dashApp.activeAudio.currentTime = 0;
+            }
+            dashApp.syncPlayerProgress();
+        };
+    },
+
+    syncPlayerProgress() {
+        const audio = dashApp.activeAudio;
+        if (!audio || !dashApp.$playerSeek || !dashApp.$playerSeek.length) return;
+        const dur = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0;
+        const cur = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+        dashApp.$playerDur.text(dashApp.formatTime(dur));
+        dashApp.$playerCur.text(dashApp.formatTime(cur));
+        if (!dashApp.seeking) {
+            const ratio = dur > 0 ? Math.min(1, Math.max(0, cur / dur)) : 0;
+            dashApp.$playerSeek.val(String(Math.round(ratio * 1000)));
+        }
+    },
+
+    seekBy(deltaSec) {
+        const audio = dashApp.activeAudio;
+        if (!audio) return;
+        const dur = Number.isFinite(audio.duration) ? audio.duration : 0;
+        let next = (Number(audio.currentTime) || 0) + deltaSec;
+        if (dur > 0) next = Math.min(dur, Math.max(0, next));
+        else next = Math.max(0, next);
+        audio.currentTime = next;
+        dashApp.syncPlayerProgress();
+    },
+
+    startPlayback($btn, audio) {
+        dashApp.activeAudio = audio;
+        dashApp.activePlayBtn = $btn;
+        dashApp.bindActiveAudio(audio);
+        dashApp.showPlayerBar($btn);
+        audio.play().catch((err) => console.warn('[DASH] play failed', err));
+        dashApp.setPlayingUi(true);
+    },
+
+    pausePlayback() {
+        if (dashApp.activeAudio) {
+            dashApp.activeAudio.pause();
+        }
+        dashApp.setPlayingUi(false);
+    },
+
+    stopActiveAudio(resetTime) {
+        const audio = dashApp.activeAudio;
+        if (audio) {
+            audio.pause();
+            if (resetTime) audio.currentTime = 0;
+            audio.ontimeupdate = null;
+            audio.onloadedmetadata = null;
+            audio.onended = null;
+        }
+        dashApp.setPlayingUi(false);
+        dashApp.activeAudio = null;
+        dashApp.activePlayBtn = null;
     },
 
     renderQueues() {
